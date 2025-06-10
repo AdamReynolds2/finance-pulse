@@ -51,29 +51,49 @@
 
 
     async function fetchPrices() {
-      const base = 'https://api.twelvedata.com/price';
-      const data = [];
+  const base = "https://api.twelvedata.com/price";
+  const data = [];
 
-      for (const s of symbols) {
-        const url = `${base}?symbol=${encodeURIComponent(s.symbol)}&apikey=${TWELVE_API_KEY}`;
-        try {
-          const res = await fetch(url);
-          const json = await res.json();
+  // Symbols supported by Twelve Data:
+  const tdSymbols = [
+    { name: "S&P 500", symbol: "SPY", type: "etf" },
+    { name: "Gold", symbol: "XAU/USD", type: "commodity" },
+    { name: "7-10 Year Treasury ETF", symbol: "IEF", type: "bond" },
+    { name: "Nasdaq", symbol: "QQQ", type: "etf" },
+  ];
 
-          if (json.price) {
-            data.push({ ...s, value: parseFloat(json.price) });
-          } else {
-            console.warn(`No price data for ${s.symbol}:`, json);
-            data.push({ ...s, value: NaN });
-          }
-        } catch (err) {
-          console.error(`Error fetching ${s.symbol}:`, err);
-          data.push({ ...s, value: NaN });
-        }
+  // Fetch Twelve Data prices
+  for (const s of tdSymbols) {
+    const url = `${base}?symbol=${encodeURIComponent(s.symbol)}&apikey=${TWELVE_API_KEY}`;
+    try {
+      const res = await fetch(url);
+      const json = await res.json();
+      if (json.price) {
+        data.push({ ...s, value: parseFloat(json.price) });
+      } else {
+        console.warn(`No price data for ${s.symbol}:`, json);
+        data.push({ ...s, value: NaN });
       }
-
-      return data;
+    } catch (err) {
+      console.error(`Error fetching ${s.symbol}:`, err);
+      data.push({ ...s, value: NaN });
     }
+  }
+
+  // Fetch Finnhub prices for VIX and Bitcoin
+  const vixPrice = await fetchFinnhubQuote("^VIX"); // VIX symbol on Finnhub
+  data.push({ name: "VIX", symbol: "^VIX", type: "index", value: vixPrice });
+
+  const btcPrice = await fetchFinnhubQuote("BINANCE:BTCUSDT"); // Binance BTC/USDT pair
+  data.push({ name: "Bitcoin", symbol: "BINANCE:BTCUSDT", type: "crypto", value: btcPrice });
+
+  // Fetch US 10Y Yield economic data from Finnhub
+  const us10yYield = await fetchUS10YYield();
+  data.push({ name: "US 10Y Yield", symbol: "US10Y_YIELD", type: "bond", value: us10yYield });
+
+  return data;
+}
+
 
     // Adjusted risk rules for 6 items
     function determineRiskType(name, value) {
