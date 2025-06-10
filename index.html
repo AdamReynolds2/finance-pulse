@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Finance Pulse</title>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -14,19 +14,19 @@
     <!-- Market Alerts -->
     <section id="alerts" class="mb-6">
       <h2 class="text-xl font-semibold mb-2">Market Pulse Alerts</h2>
-      <div class="grid grid-cols-2 gap-4" id="alert-cards"></div>
-    </section>
-
-    <!-- Chart Display -->
-    <section id="chart-section" class="mb-6 hidden">
-      <h2 class="text-xl font-semibold mb-2" id="chart-title">Historical Chart</h2>
-      <canvas id="chart-canvas" class="bg-white rounded-lg"></canvas>
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-4" id="alert-cards"></div>
     </section>
 
     <!-- News Headlines -->
     <section class="mb-6">
       <h2 class="text-xl font-semibold mb-2">Latest Market Headlines</h2>
       <ul id="news-list" class="list-disc list-inside text-sm space-y-1"></ul>
+    </section>
+
+    <!-- Macro Snapshot -->
+    <section class="mb-6">
+      <h2 class="text-xl font-semibold mb-2">Macro Snapshot</h2>
+      <div id="macro-panel" class="grid grid-cols-2 gap-4 text-sm"></div>
     </section>
 
     <!-- Mode Suggestion -->
@@ -36,15 +36,24 @@
     </section>
   </div>
 
+  <!-- Chart Modal -->
+  <div id="chart-modal" class="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center hidden z-50">
+    <div class="bg-white text-black rounded-lg p-4 max-w-xl w-full relative">
+      <button onclick="closeChart()" class="absolute top-2 right-2 text-red-600">✖</button>
+      <canvas id="chartCanvas" width="400" height="300"></canvas>
+    </div>
+  </div>
+
   <script>
-    const API_KEY = "wBaK2cIhxa1C7tg5D3NpSu9CduOCbvgF"; // Replace with your real key
+    const API_KEY = 'wBaK2cIhxa1C7tg5D3NpSu9CduOCbvgF'; // Replace with your own FinancialModelingPrep key
+
     const indicators = [
       { name: "S&P 500", symbol: "SPY" },
       { name: "Nasdaq 100", symbol: "QQQ" },
       { name: "Gold", symbol: "XAUUSD" },
-      { name: "10Y Yield", symbol: "IEF" },
+      { name: "10Y Treasury", symbol: "IEF" },
       { name: "Dollar Index", symbol: "DXY" },
-      { name: "Fear & Greed Index", symbol: "fear_greed", type: "sentiment" }
+      { name: "Fear & Greed Index", symbol: "fear_greed" }
     ];
 
     async function fetchPrice(symbol) {
@@ -52,107 +61,53 @@
       const res = await fetch(url);
       const json = await res.json();
       if (!Array.isArray(json) || json.length === 0) throw new Error("No data");
-      return json[0].price;
+      const item = json[0];
+      return {
+        price: item.price,
+        changePercent: item.changesPercentage
+      };
     }
 
     async function fetchFearGreed() {
-      const res = await fetch("https://api.alternative.me/fng/");
+      const res = await fetch('https://fear-and-greed-index.p.rapidapi.com/v1/fgi', {
+        headers: {
+          'X-RapidAPI-Key': 'YOUR_RAPIDAPI_KEY',
+          'X-RapidAPI-Host': 'fear-and-greed-index.p.rapidapi.com'
+        }
+      });
       const json = await res.json();
-      return parseInt(json.data[0].value);
+      return parseInt(json.fgi.now.value);
     }
 
     async function fetchAllData() {
       const data = [];
       for (const i of indicators) {
         try {
-          let value = null;
+          let value = null, changePercent = null;
           if (i.symbol === "fear_greed") {
             value = await fetchFearGreed();
           } else {
-            value = await fetchPrice(i.symbol);
+            const result = await fetchPrice(i.symbol);
+            value = result.price;
+            changePercent = result.changePercent;
           }
-          data.push({ ...i, value });
+          data.push({ ...i, value, changePercent });
         } catch (err) {
           console.warn(`Error fetching ${i.name}:`, err);
-          data.push({ ...i, value: "N/A" });
+          data.push({ ...i, value: "N/A", changePercent: null });
         }
       }
       return data;
     }
 
     function determineRiskType(item) {
-      const { name, value } = item;
-      if (value === "N/A") return "neutral";
-      if (name === "S&P 500" && value < 430) return "risk-off";
-      if (name === "Nasdaq 100" && value < 350) return "risk-off";
-      if (name === "Gold" && value > 2200) return "risk-off";
-      if (name === "10Y Yield" && value > 4.5) return "risk-off";
-      if (name === "Dollar Index" && value > 105) return "risk-off";
-      if (name === "Fear & Greed Index" && value < 30) return "risk-off";
+      if (item.symbol === "SPY" && item.value < 430) return "risk-off";
+      if (item.symbol === "QQQ" && item.value < 350) return "risk-off";
+      if (item.symbol === "IEF" && item.value < 90) return "risk-off";
+      if (item.symbol === "XAUUSD" && item.value < 1900) return "risk-off";
+      if (item.symbol === "DXY" && item.value > 105) return "risk-off";
+      if (item.symbol === "fear_greed" && item.value < 30) return "risk-off";
       return "neutral";
-    }
-
-    function renderModeSuggestion(data) {
-      const modeBox = document.getElementById("mode-box");
-      const riskOffCount = data.filter(item => determineRiskType(item) === "risk-off").length;
-      if (riskOffCount >= 3) {
-        modeBox.textContent = '⚠️ Caution: Consider Holding Cash or Rebalancing';
-        modeBox.className = 'p-4 rounded-lg font-bold text-lg text-center bg-red-500 text-black';
-      } else if (riskOffCount === 0) {
-        modeBox.textContent = '✅ Market Stable: Stay Invested';
-        modeBox.className = 'p-4 rounded-lg font-bold text-lg text-center bg-green-500 text-black';
-      } else {
-        modeBox.textContent = '🟡 Neutral: Stay Informed';
-        modeBox.className = 'p-4 rounded-lg font-bold text-lg text-center bg-yellow-500 text-black';
-      }
-    }
-
-    async function fetchChartData(symbol) {
-      const url = `https://financialmodelingprep.com/api/v3/historical-price-full/${symbol}?timeseries=30&apikey=${API_KEY}`;
-      const res = await fetch(url);
-      const json = await res.json();
-      if (!json.historical) return null;
-      return json.historical.reverse();
-    }
-
-    async function showChart(name, symbol) {
-      const section = document.getElementById("chart-section");
-      const title = document.getElementById("chart-title");
-      const canvas = document.getElementById("chart-canvas");
-      section.classList.remove("hidden");
-      title.textContent = `${name} - Past 30 Days`;
-
-      const data = await fetchChartData(symbol);
-      if (!data) return;
-
-      const ctx = canvas.getContext("2d");
-      if (window.chart) window.chart.destroy();
-
-      window.chart = new Chart(ctx, {
-        type: "line",
-        data: {
-          labels: data.map(d => d.date),
-          datasets: [{
-            label: name,
-            data: data.map(d => d.close),
-            backgroundColor: "rgba(255, 255, 255, 0.1)",
-            borderColor: "rgba(255, 255, 255, 0.8)",
-            borderWidth: 2,
-            pointRadius: 0,
-            fill: true,
-          }]
-        },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: { labels: { color: "#fff" } }
-          },
-          scales: {
-            x: { ticks: { color: "#aaa" } },
-            y: { ticks: { color: "#aaa" } }
-          }
-        }
-      });
     }
 
     function renderAlerts(data) {
@@ -162,11 +117,21 @@
         const riskType = determineRiskType(item);
         const bg = riskType === 'risk-off' ? 'bg-red-500' : 'bg-yellow-500';
         const value = item.value === "N/A" ? "N/A" : item.value.toLocaleString();
+        let changeStr = "";
+        if (item.changePercent != null) {
+          const pct = parseFloat(item.changePercent);
+          const color = pct > 0 ? "text-green-600" : pct < 0 ? "text-red-600" : "text-gray-800";
+          const pctDisplay = pct.toFixed(2).replace('-', '−');
+          changeStr = `<div class="text-sm ${color}">${pct >= 0 ? '+' : '−'}${pctDisplay}%</div>`;
+        }
 
         const card = document.createElement("div");
         card.className = `p-4 rounded-lg text-black cursor-pointer ${bg}`;
-        card.innerHTML = `<div class="text-sm font-bold">${item.name}</div>
-                          <div class="text-xl">${value}</div>`;
+        card.innerHTML = `
+          <div class="text-sm font-bold">${item.name}</div>
+          <div class="text-xl">${value}</div>
+          ${changeStr}
+        `;
 
         if (item.symbol !== "fear_greed" && item.value !== "N/A") {
           card.onclick = () => showChart(item.name, item.symbol);
@@ -178,24 +143,62 @@
       renderModeSuggestion(data);
     }
 
-    async function fetchNews() {
-      try {
-        const res = await fetch("https://finnhub.io/api/v1/news?category=general&token=d1482k1r01qrqeasm27gd1482k1r01qrqeasm280");
-        const articles = await res.json();
-        return Array.isArray(articles) ? articles.slice(0, 5) : [];
-      } catch (err) {
-        console.error("News error", err);
-        return [];
+    function renderModeSuggestion(data) {
+      const box = document.getElementById("mode-box");
+      const riskOffCount = data.filter(i => determineRiskType(i) === "risk-off").length;
+      if (riskOffCount >= 3) {
+        box.textContent = "⚠️ Caution: Consider Holding Cash or Rebalancing";
+        box.className = "p-4 rounded-lg font-bold text-lg text-center bg-red-500 text-black";
+      } else if (riskOffCount === 0) {
+        box.textContent = "✅ Market Stable: Stay Invested";
+        box.className = "p-4 rounded-lg font-bold text-lg text-center bg-green-500 text-black";
+      } else {
+        box.textContent = "🟡 Neutral: Stay Informed";
+        box.className = "p-4 rounded-lg font-bold text-lg text-center bg-yellow-500 text-black";
       }
     }
 
-    function renderNews(articles) {
+    async function showChart(name, symbol) {
+      const modal = document.getElementById("chart-modal");
+      const ctx = document.getElementById("chartCanvas").getContext("2d");
+      modal.classList.remove("hidden");
+      const url = `https://financialmodelingprep.com/api/v3/historical-price-full/${symbol}?serietype=line&timeseries=30&apikey=${API_KEY}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      const prices = data.historical.reverse();
+      new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: prices.map(p => p.date),
+          datasets: [{
+            label: `${name} Price`,
+            data: prices.map(p => p.close),
+            borderColor: "#3B82F6",
+            backgroundColor: "#3B82F622",
+            fill: true
+          }]
+        }
+      });
+    }
+
+    function closeChart() {
+      document.getElementById("chart-modal").classList.add("hidden");
+      document.getElementById("chartCanvas").getContext("2d").clearRect(0, 0, 400, 300);
+    }
+
+    async function fetchNews() {
+      const res = await fetch("https://fmpcloud.io/api/v3/stock_news?limit=5&apikey=d1482k1r01qrqeasm27gd1482k1r01qrqeasm280");
+      const articles = await res.json();
+      return Array.isArray(articles) ? articles : [];
+    }
+
+    function renderNewsHeadlines(articles) {
       const list = document.getElementById("news-list");
       list.innerHTML = "";
       articles.forEach(article => {
         const li = document.createElement("li");
         li.classList.add("mb-1");
-        li.innerHTML = `<a href="${article.url}" class="underline hover:text-yellow-300" target="_blank">${article.headline}</a>`;
+        li.innerHTML = `<a href="${article.url}" class="underline hover:text-yellow-300" target="_blank">${article.title}</a>`;
         list.appendChild(li);
       });
     }
@@ -203,8 +206,8 @@
     async function initDashboard() {
       const data = await fetchAllData();
       renderAlerts(data);
-      const news = await fetchNews();
-      renderNews(news);
+      const headlines = await fetchNews();
+      renderNewsHeadlines(headlines);
     }
 
     initDashboard();
