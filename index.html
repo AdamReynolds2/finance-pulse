@@ -41,13 +41,14 @@
 
     // Expanded symbol list
     const symbols = [
-      { name: 'S&P 500', symbol: 'SPY', type: 'etf' },
-      { name: 'VIX', symbol: 'VIX', type: 'index' },
-      { name: 'Bitcoin', symbol: 'BTCUSD', type: 'crypto' },
-      { name: 'Gold', symbol: 'XAU/USD', type: 'commodity' },
-      { name: 'US 10Y Yield', symbol: 'US10Y', type: 'bond' },
-      { name: 'Nasdaq', symbol: 'QQQ', type: 'etf' },
-    ];
+  { name: 'S&P 500', symbol: 'SPY', type: 'etf' },
+  { name: 'VIX', symbol: 'VIX', type: 'index' },
+  { name: 'Bitcoin', symbol: 'BTC/USD', type: 'crypto' },
+  { name: 'Gold', symbol: 'XAU/USD', type: 'commodity' },
+  { name: '7-10 Year Treasury ETF', symbol: 'IEF', type: 'bond' },  // proxy for US 10Y yield
+  { name: 'Nasdaq', symbol: 'QQQ', type: 'etf' },
+];
+
 
     async function fetchPrices() {
       const base = 'https://api.twelvedata.com/price';
