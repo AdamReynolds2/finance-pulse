@@ -39,10 +39,14 @@
     const TWELVE_API_KEY = '146a9495d2c64e85936d21b0be82c103';   // ← Replace with your Twelve Data API key
     const FINNHUB_API_KEY = 'd1482k1r01qrqeasm27gd1482k1r01qrqeasm280';       // ← Replace with your Finnhub API key
 
+    // Expanded symbol list
     const symbols = [
       { name: 'S&P 500', symbol: 'SPY', type: 'etf' },
       { name: 'VIX', symbol: 'VIX', type: 'index' },
-      { name: 'Bitcoin', symbol: 'BTCUSD', type: 'crypto' }, // Fixed symbol (no slash)
+      { name: 'Bitcoin', symbol: 'BTCUSD', type: 'crypto' },
+      { name: 'Gold', symbol: 'XAU/USD', type: 'commodity' },
+      { name: 'US 10Y Yield', symbol: 'US10Y', type: 'bond' },
+      { name: 'Nasdaq', symbol: 'QQQ', type: 'etf' },
     ];
 
     async function fetchPrices() {
@@ -70,11 +74,38 @@
       return data;
     }
 
+    // Adjusted risk rules for 6 items
     function determineRiskType(name, value) {
-      if (name === 'S&P 500' && value < 430) return 'risk-off';
-      if (name === 'VIX' && value > 20) return 'risk-off';
-      if (name === 'Bitcoin' && value < 30000) return 'risk-off';
-      return 'neutral';
+      if (isNaN(value)) return 'neutral';  // No data fallback
+
+      switch (name) {
+        case 'S&P 500':
+        case 'Nasdaq':
+          if (value < 430) return 'risk-off';
+          return 'neutral';
+
+        case 'VIX':
+          if (value > 20) return 'risk-off';
+          return 'neutral';
+
+        case 'Bitcoin':
+          if (value < 30000) return 'risk-off';
+          return 'neutral';
+
+        case 'Gold':
+          // Gold often rises in risk-off, so high price might signal risk-off
+          if (value > 1800) return 'risk-off';
+          return 'neutral';
+
+        case 'US 10Y Yield':
+          // Rising yield may imply risk-on, falling yield risk-off
+          // This is a simplified rule
+          if (value < 3.0) return 'risk-off';
+          return 'neutral';
+
+        default:
+          return 'neutral';
+      }
     }
 
     function renderLiveAlerts(data) {
@@ -97,14 +128,14 @@
       const modeBox = document.getElementById('mode-box');
       const riskOffCount = alerts.filter(a => determineRiskType(a.name, a.value) === 'risk-off').length;
 
-      if (riskOffCount >= 2) {
-        modeBox.textContent = '⚠️ Caution: Consider Holding Cash or Rebalancing';
-        modeBox.className = 'p-4 rounded-lg font-bold text-lg text-center bg-red-500 text-black';
+      if (riskOffCount >= 3) {
+        modeBox.textContent = '⚠️ High Caution: Consider Holding Cash or Rebalancing';
+        modeBox.className = 'p-4 rounded-lg font-bold text-lg text-center bg-red-600 text-black';
       } else if (riskOffCount === 0) {
         modeBox.textContent = '✅ Market Stable: Stay Invested';
-        modeBox.className = 'p-4 rounded-lg font-bold text-lg text-center bg-green-500 text-black';
+        modeBox.className = 'p-4 rounded-lg font-bold text-lg text-center bg-green-600 text-black';
       } else {
-        modeBox.textContent = '🟡 Neutral: Stay Informed';
+        modeBox.textContent = '🟡 Moderate Risk: Stay Informed and Watch Closely';
         modeBox.className = 'p-4 rounded-lg font-bold text-lg text-center bg-yellow-500 text-black';
       }
     }
