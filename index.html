@@ -1,190 +1,130 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Finance Pulse</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
 <body class="bg-gray-900 text-white font-sans">
   <div class="max-w-4xl mx-auto p-4">
     <h1 class="text-3xl font-bold mb-4">📊 Finance Pulse</h1>
-
-    <!-- Market Alerts -->
-    <section id="alerts" class="mb-6">
+    <section class="mb-6">
       <h2 class="text-xl font-semibold mb-2">Market Pulse Alerts</h2>
-      <div class="grid grid-cols-2 gap-4" id="alert-cards"></div>
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-4" id="alert-cards"></div>
     </section>
-
-    <!-- News Headlines -->
     <section class="mb-6">
       <h2 class="text-xl font-semibold mb-2">Latest Market Headlines</h2>
       <ul id="news-list" class="list-disc list-inside text-sm space-y-1"></ul>
     </section>
-
-    <!-- Mode Suggestion -->
     <section class="mb-6">
       <h2 class="text-xl font-semibold mb-2">Investment Mode</h2>
       <div id="mode-box" class="p-4 rounded-lg font-bold text-lg text-center bg-yellow-500 text-black">Loading...</div>
     </section>
   </div>
 
-  <!-- Chart Modal -->
-  <div id="chartModal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center hidden">
-    <div class="bg-white text-black rounded p-4 max-w-xl w-full">
-      <h3 id="chartTitle" class="text-lg font-bold mb-2">Loading...</h3>
-      <canvas id="chartCanvas" width="400" height="200"></canvas>
-      <button onclick="closeChart()" class="mt-4 px-4 py-2 bg-gray-800 text-white rounded">Close</button>
-    </div>
-  </div>
+<script>
+const FMP_API_KEY = 'wBaK2cIhxa1C7tg5D3NpSu9CduOCbvgF';
 
-  <script>
-    const FMP_KEY = 'wBaK2cIhxa1C7tg5D3NpSu9CduOCbvgF'; // Replace with your actual Financial Modeling Prep API key
+const indicators = [
+  { name: 'S&P 500', symbol: 'SPY', source: 'fmp' },
+  { name: 'Nasdaq 100', symbol: 'QQQ', source: 'fmp' },
+  { name: 'US 10Y Bond (IEF)', symbol: 'IEF', source: 'fmp' },
+  { name: 'Gold', symbol: 'XAUUSD', source: 'fmp' },
+  { name: 'Dollar (UUP)', symbol: 'UUP', source: 'fmp' },
+  { name: 'Crypto Fear & Greed', symbol: 'fng', source: 'fng' },
+];
 
-    const indicators = [
-      { name: 'S&P 500', symbol: 'SPY' },
-      { name: 'Nasdaq 100', symbol: 'QQQ' },
-      { name: 'Gold', symbol: 'GLD' },
-      { name: 'Crypto Fear & Greed', symbol: 'fng', source: 'fng' },
-      { name: '10Y Treasury', symbol: 'IEF' },
-      { name: 'Dollar Index (UUP)', symbol: 'UUP' },
-    ];
+// Fetch from FMP
+async function fetchFMP(symbol) {
+  const url = `https://financialmodelingprep.com/api/v3/quote/${symbol}?apikey=${FMP_API_KEY}`;
+  try {
+    const res = await fetch(url);
+    const j = await res.json();
+    if (j.length) return { price: j[0].price, change: j[0].changesPercentage };
+  } catch (e) {console.error('FMP error', e);}
+  return null;
+}
 
-    async function fetchQuotes() {
-      const symbols = indicators.map(i => i.symbol).join(',');
-      const url = `https://financialmodelingprep.com/api/v3/quote/${symbols}?apikey=${FMP_KEY}`;
-      try {
-        const res = await fetch(url);
-        const json = await res.json();
-        return indicators.map(ind => {
-          const match = json.find(q => q.symbol === ind.symbol);
-          return {
-            ...ind,
-            value: match?.price ?? 'N/A',
-          };
-        });
-      } catch (err) {
-        console.error('Fetch error:', err);
-        return [];
-      }
-    }
+// Fetch Fear & Greed
+async function fetchFNG() {
+  try {
+    const res = await fetch('https://api.alternative.me/fng/?limit=1');
+    const j = await res.json();
+    const d = j.data[0];
+    return { price: parseInt(d.value), change: null, sentiment: d.value_classification };
+  } catch (e) {console.error('FNG error', e);}
+  return null;
+}
 
-    function determineRisk(name, value) {
-      if (name === 'S&P 500' && value < 430) return 'risk-off';
-      if (name === 'Nasdaq 100' && value < 360) return 'risk-off';
-      if (name === 'Gold' && value > 2000) return 'risk-off';
-      if (name === 'Bitcoin' && value < 30000) return 'risk-off';
-      if (name === '10Y Treasury' && value > 100) return 'risk-off';
-      if (name.includes('Dollar') && value > 28) return 'risk-off';
-      return 'neutral';
-    }
+async function loadAll() {
+  const out = [];
+  for (let ind of indicators) {
+    let r = null;
+    if (ind.source === 'fmp') r = await fetchFMP(ind.symbol);
+    else if (ind.source === 'fng') r = await fetchFNG();
+    out.push({ name: ind.name, price: r?.price ?? 'N/A', change: r?.change ?? 'N/A', sentiment: r?.sentiment });
+  }
+  return out;
+}
 
-    function renderAlerts(data) {
-      const container = document.getElementById('alert-cards');
-      container.innerHTML = '';
-      data.forEach(item => {
-        const risk = determineRisk(item.name, item.value);
-        const bg = risk === 'risk-off' ? 'bg-red-500' :
-                   risk === 'risk-on' ? 'bg-green-500' : 'bg-yellow-500';
-        const val = item.value !== 'N/A' ? Number(item.value).toLocaleString() : 'N/A';
-        container.innerHTML += `
-          <div class="p-4 rounded-lg ${bg} text-black cursor-pointer" data-symbol="${item.symbol}" data-name="${item.name}">
-            <div class="text-sm font-bold">${item.name}</div>
-            <div class="text-xl">${val}</div>
-          </div>`;
-      });
+function render(cards) {
+  const c = document.getElementById('alert-cards');
+  c.innerHTML = '';
+  cards.forEach(i => {
+    const isDrop = typeof i.change === 'number' && i.change < 0;
+    const isFear = i.sentiment && i.sentiment.toLowerCase().includes('fear');
+    const bg = i.name === 'Crypto Fear & Greed'
+      ? (isFear ? 'bg-red-500' : 'bg-green-500')
+      : (isDrop ? 'bg-red-500' : 'bg-green-500');
 
-      renderModeSuggestion(data);
-    }
+    let line2 = typeof i.price==='number'?i.price.toFixed(2):i.price;
+    let line3 = i.name==='Crypto Fear & Greed' ? i.sentiment : (typeof i.change==='number' ? i.change.toFixed(2)+'%' : '');
 
-    function renderModeSuggestion(data) {
-      const box = document.getElementById('mode-box');
-      const riskOffCount = data.filter(d => determineRisk(d.name, d.value) === 'risk-off').length;
-      if (riskOffCount >= 3) {
-        box.textContent = '⚠️ Caution: Consider Holding Cash or Rebalancing';
-        box.className = 'p-4 rounded-lg font-bold text-lg text-center bg-red-500 text-black';
-      } else if (riskOffCount === 0) {
-        box.textContent = '✅ Market Stable: Stay Invested';
-        box.className = 'p-4 rounded-lg font-bold text-lg text-center bg-green-500 text-black';
-      } else {
-        box.textContent = '🟡 Neutral: Stay Informed';
-        box.className = 'p-4 rounded-lg font-bold text-lg text-center bg-yellow-500 text-black';
-      }
-    }
+    c.innerHTML += `<div class="p-4 rounded-lg ${bg} text-black"><div class="font-bold">${i.name}</div><div class="text-xl">${line2}</div><div class="text-sm">${line3}</div></div>`;
+  });
 
-    async function fetchNews() {
-      try {
-        const url = `https://finnhub.io/api/v1/news?category=general&token=d1482k1r01qrqeasm27gd1482k1r01qrqeasm280`;
-        const res = await fetch(url);
-        const articles = await res.json();
-        return articles.slice(0, 5);
-      } catch (err) {
-        console.error('News error:', err);
-        return [];
-      }
-    }
+  renderMode(cards);
+}
 
-    function renderNewsHeadlines(articles) {
-      const list = document.getElementById('news-list');
-      list.innerHTML = '';
-      articles.forEach(article => {
-        const li = document.createElement('li');
-        li.classList.add('mb-1');
-        li.innerHTML = `<a href="${article.url}" class="underline hover:text-yellow-300" target="_blank">${article.headline}</a>`;
-        list.appendChild(li);
-      });
-    }
+function renderMode(cards) {
+  const mb = document.getElementById('mode-box');
+  const drops = cards.filter(i => (typeof i.change==='number'&&i.change< -0.5) || (i.name==='Crypto Fear & Greed' && i.sentiment.toLowerCase().includes('fear'))).length;
 
-    async function fetchHistory(symbol) {
-      const url = `https://financialmodelingprep.com/api/v3/historical-price-full/${symbol}?timeseries=30&apikey=${FMP_KEY}`;
-      const res = await fetch(url);
-      const json = await res.json();
-      return json.historical?.reverse() || [];
-    }
+  if (drops >= 4) {
+    mb.textContent = '⚠️ High Risk';
+    mb.className = 'p-4 rounded-lg bg-red-500 text-white';
+  } else if (drops <= 1) {
+    mb.textContent = '✅ Stable';
+    mb.className = 'p-4 rounded-lg bg-green-500 text-white';
+  } else {
+    mb.textContent = '🟡 Mixed Signals';
+    mb.className = 'p-4 rounded-lg bg-yellow-500 text-black';
+  }
+}
 
-    async function showChart(symbol, name) {
-      const data = await fetchHistory(symbol);
-      const ctx = document.getElementById('chartCanvas').getContext('2d');
-      document.getElementById('chartTitle').textContent = name;
-      if (window.myChart) window.myChart.destroy();
-      window.myChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: data.map(d => d.date),
-          datasets: [{
-            label: name,
-            data: data.map(d => d.close),
-            fill: false,
-            borderColor: 'blue',
-            tension: 0.1
-          }]
-        }
-      });
-      document.getElementById('chartModal').classList.remove('hidden');
-    }
+async function fetchNews() {
+  try {
+    const r = await fetch('https://finnhub.io/api/v1/news?category=general&token=YOUR_FINNHUB_KEY');
+    return (await r.json()).slice(0,5);
+  } catch(e){console.error('News error',e); return [];}
+}
 
-    function closeChart() {
-      document.getElementById('chartModal').classList.add('hidden');
-    }
+function renderNews(ns) {
+  const ul = document.getElementById('news-list');
+  ul.innerHTML = '';
+  ns.forEach(a => {
+    const li = document.createElement('li');
+    li.innerHTML = `<a href="${a.url}" target="_blank" class="underline hover:text-yellow-300">${a.headline}</a>`;
+    ul.appendChild(li);
+  });
+}
 
-    document.addEventListener('click', e => {
-      const card = e.target.closest('[data-symbol]');
-      if (card) {
-        const symbol = card.getAttribute('data-symbol');
-        const name = card.getAttribute('data-name');
-        showChart(symbol, name);
-      }
-    });
-
-    async function init() {
-      const quoteData = await fetchQuotes();
-      renderAlerts(quoteData);
-      const news = await fetchNews();
-      renderNewsHeadlines(news);
-    }
-
-    init();
-  </script>
-</body>
-</html>
+(async function init() {
+  const data = await loadAll();
+  render(data);
+  const news = await fetchNews();
+  renderNews(news);
+})();
+</script>
+</body></html>
