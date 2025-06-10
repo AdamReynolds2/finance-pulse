@@ -25,7 +25,9 @@
     <!-- Macro Snapshot -->
     <section class="mb-6">
       <h2 class="text-xl font-semibold mb-2">Macro Snapshot</h2>
-      <div id="macro-panel" class="grid grid-cols-2 gap-4 text-sm"></div>
+      <div id="macro-panel" class="grid grid-cols-2 gap-4 text-sm">
+        <p>Coming soon: inflation, rates, GDP...</p>
+      </div>
     </section>
 
     <!-- Mode Suggestion -->
@@ -36,105 +38,107 @@
   </div>
 
   <script>
-  const TWELVE_API_KEY = '146a9495d2c64e85936d21b0be82c103';
-  const FINNHUB_API_KEY = 'd1482k1r01qrqeasm27gd1482k1r01qrqeasm280';
+    const TWELVE_API_KEY = '146a9495d2c64e85936d21b0be82c103';   // ← Replace with your Twelve Data API key
+    const FINNHUB_API_KEY = 'd1482k1r01qrqeasm27gd1482k1r01qrqeasm280';       // ← Replace with your Finnhub API key
 
-  const symbols = [
-    { name: 'S&P 500', symbol: 'SPY', type: 'etf' },
-    { name: 'VIX', symbol: 'VIX', type: 'index' },
-    { name: 'Bitcoin', symbol: 'BTC/USD', type: 'crypto' },
-  ];
+    const symbols = [
+      { name: 'S&P 500', symbol: 'SPY', type: 'etf' },
+      { name: 'VIX', symbol: 'VIX', type: 'index' },
+      { name: 'Bitcoin', symbol: 'BTC/USD', type: 'crypto' },
+    ];
 
-  async function fetchPrices() {
-    const base = 'https://api.twelvedata.com/price';
-    const data = [];
+    async function fetchPrices() {
+      const base = 'https://api.twelvedata.com/price';
+      const data = [];
 
-    for (const s of symbols) {
-      const url = `${base}?symbol=${encodeURIComponent(s.symbol)}&apikey=${TWELVE_API_KEY}`;
-      try {
-        const res = await fetch(url);
-        const json = await res.json();
-        data.push({ ...s, value: parseFloat(json.price) });
-      } catch (err) {
-        console.error(`Error fetching ${s.symbol}:`, err);
+      for (const s of symbols) {
+        const url = `${base}?symbol=${encodeURIComponent(s.symbol)}&apikey=${TWELVE_API_KEY}`;
+        try {
+          const res = await fetch(url);
+          const json = await res.json();
+          data.push({ ...s, value: parseFloat(json.price) });
+        } catch (err) {
+          console.error(`Error fetching ${s.symbol}:`, err);
+        }
+      }
+
+      return data;
+    }
+
+    function determineRiskType(name, value) {
+      if (name === 'S&P 500' && value < 430) return 'risk-off';
+      if (name === 'VIX' && value > 20) return 'risk-off';
+      if (name === 'Bitcoin' && value < 30000) return 'risk-off';
+      return 'neutral';
+    }
+
+    function renderLiveAlerts(data) {
+      const container = document.getElementById('alert-cards');
+      container.innerHTML = '';
+      data.forEach(a => {
+        const riskType = determineRiskType(a.name, a.value);
+        const bg = riskType === 'risk-off' ? 'bg-red-500' :
+                   riskType === 'risk-on' ? 'bg-green-500' : 'bg-yellow-500';
+        container.innerHTML += `<div class="p-4 rounded-lg ${bg} text-black">
+          <div class="text-sm font-bold">${a.name}</div>
+          <div class="text-xl">${a.value.toLocaleString()}</div>
+        </div>`;
+      });
+
+      renderModeSuggestion(data);
+    }
+
+    function renderModeSuggestion(alerts) {
+      const modeBox = document.getElementById('mode-box');
+      const riskOffCount = alerts.filter(a => determineRiskType(a.name, a.value) === 'risk-off').length;
+
+      if (riskOffCount >= 2) {
+        modeBox.textContent = '⚠️ Caution: Consider Holding Cash or Rebalancing';
+        modeBox.className = 'p-4 rounded-lg font-bold text-lg text-center bg-red-500 text-black';
+      } else if (riskOffCount === 0) {
+        modeBox.textContent = '✅ Market Stable: Stay Invested';
+        modeBox.className = 'p-4 rounded-lg font-bold text-lg text-center bg-green-500 text-black';
+      } else {
+        modeBox.textContent = '🟡 Neutral: Stay Informed';
+        modeBox.className = 'p-4 rounded-lg font-bold text-lg text-center bg-yellow-500 text-black';
       }
     }
 
-    return data;
-  }
-
-  async function fetchNews() {
-    const url = `https://finnhub.io/api/v1/news?category=general&token=${FINNHUB_API_KEY}`;
-    try {
-      const res = await fetch(url);
-      const articles = await res.json();
-      return articles.slice(0, 5); // Top 5 headlines
-    } catch (err) {
-      console.error('News fetch error:', err);
-      return [];
+    async function fetchNews() {
+      const url = `https://finnhub.io/api/v1/news?category=general&token=${FINNHUB_API_KEY}`;
+      try {
+        const res = await fetch(url);
+        const articles = await res.json();
+        return articles.slice(0, 5);
+      } catch (err) {
+        console.error('News fetch error:', err);
+        return [];
+      }
     }
-  }
 
-  function determineRiskType(name, value) {
-    if (name === 'S&P 500' && value < 430) return 'risk-off';
-    if (name === 'VIX' && value > 20) return 'risk-off';
-    if (name === 'Bitcoin' && value < 30000) return 'risk-off';
-    return 'neutral';
-  }
-
-  function renderLiveAlerts(data) {
-    const container = document.getElementById('alert-cards');
-    container.innerHTML = '';
-    data.forEach(a => {
-      const riskType = determineRiskType(a.name, a.value);
-      const bg = riskType === 'risk-off' ? 'bg-red-500' :
-                 riskType === 'risk-on' ? 'bg-green-500' : 'bg-yellow-500';
-      container.innerHTML += `<div class="p-4 rounded-lg ${bg} text-black">
-        <div class="text-sm font-bold">${a.name}</div>
-        <div class="text-xl">${a.value.toLocaleString()}</div>
-      </div>`;
-    });
-
-    renderModeSuggestion(data);
-  }
-
-  function renderModeSuggestion(alerts) {
-    const modeBox = document.getElementById('mode-box');
-    const riskOffCount = alerts.filter(a => determineRiskType(a.name, a.value) === 'risk-off').length;
-    if (riskOffCount >= 2) {
-      modeBox.textContent = '⚠️ Caution: Consider Holding Cash or Rebalancing';
-      modeBox.className = 'p-4 rounded-lg font-bold text-lg text-center bg-red-500 text-black';
-    } else if (riskOffCount === 0) {
-      modeBox.textContent = '✅ Market Stable: Stay Invested';
-      modeBox.className = 'p-4 rounded-lg font-bold text-lg text-center bg-green-500 text-black';
-    } else {
-      modeBox.textContent = '🟡 Neutral: Stay Informed';
-      modeBox.className = 'p-4 rounded-lg font-bold text-lg text-center bg-yellow-500 text-black';
+    function renderNewsHeadlines(articles) {
+      const list = document.getElementById('news-list');
+      list.innerHTML = '';
+      articles.forEach(article => {
+        const li = document.createElement('li');
+        li.classList.add('mb-1');
+        li.innerHTML = `
+          <a href="${article.url}" class="underline hover:text-yellow-300" target="_blank">
+            ${article.headline}
+          </a>`;
+        list.appendChild(li);
+      });
     }
-  }
 
-  function renderNewsHeadlines(articles) {
-    const list = document.getElementById('news-list');
-    list.innerHTML = '';
-    articles.forEach(article => {
-      const li = document.createElement('li');
-      li.classList.add('mb-1');
-      li.innerHTML = `<a href="${article.url}" class="underline hover:text-yellow-300" target="_blank">${article.headline}</a>`;
-      list.appendChild(li);
-    });
-  }
+    async function initDashboard() {
+      const priceData = await fetchPrices();
+      renderLiveAlerts(priceData);
 
-  async function initDashboard() {
-    const priceData = await fetchPrices();
-    renderLiveAlerts(priceData);
+      const newsArticles = await fetchNews();
+      renderNewsHeadlines(newsArticles);
+    }
 
-    const newsArticles = await fetchNews();
-    renderNewsHeadlines(newsArticles);
-  }
-
-  initDashboard();
-</script>
-
-
+    initDashboard();
+  </script>
 </body>
 </html>
