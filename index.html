@@ -1,216 +1,160 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Finance Pulse</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Finance Pulse</title>
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-gray-900 text-white font-sans">
   <div class="max-w-4xl mx-auto p-4">
     <h1 class="text-3xl font-bold mb-4">📊 Finance Pulse</h1>
-
-    <!-- Market Alerts -->
-    <section id="alerts" class="mb-6">
-      <h2 class="text-xl font-semibold mb-2">Market Pulse Alerts</h2>
-      <div class="grid grid-cols-2 md:grid-cols-3 gap-4" id="alert-cards"></div>
-    </section>
-
-    <!-- News Headlines -->
+    <div id="alerts" class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6"></div>
+    <div id="chart-modal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center hidden z-50">
+      <div class="bg-white rounded-lg p-4 max-w-xl w-full">
+        <button onclick="closeChart()" class="mb-2 px-2 py-1 bg-red-600 text-white rounded">Close</button>
+        <canvas id="chartCanvas" height="200"></canvas>
+      </div>
+    </div>
     <section class="mb-6">
-      <h2 class="text-xl font-semibold mb-2">Latest Market Headlines</h2>
+      <h2 class="text-xl font-semibold">Latest Headlines</h2>
       <ul id="news-list" class="list-disc list-inside text-sm space-y-1"></ul>
     </section>
-
-    <!-- Macro Snapshot -->
-    <section class="mb-6">
-      <h2 class="text-xl font-semibold mb-2">Macro Snapshot</h2>
-      <div id="macro-panel" class="grid grid-cols-2 gap-4 text-sm"></div>
-    </section>
-
-    <!-- Mode Suggestion -->
-    <section class="mb-6">
-      <h2 class="text-xl font-semibold mb-2">Investment Mode</h2>
-      <div id="mode-box" class="p-4 rounded-lg font-bold text-lg text-center bg-yellow-500 text-black">Loading...</div>
-    </section>
+    <div id="mode-box" class="p-4 rounded-lg text-lg font-bold text-center bg-yellow-500">Loading...</div>
   </div>
 
-  <!-- Chart Modal -->
-  <div id="chart-modal" class="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center hidden z-50">
-    <div class="bg-white text-black rounded-lg p-4 max-w-xl w-full relative">
-      <button onclick="closeChart()" class="absolute top-2 right-2 text-red-600">✖</button>
-      <canvas id="chartCanvas" width="400" height="300"></canvas>
-    </div>
-  </div>
+<script>
+const FMP_KEY = 'wBaK2cIhxa1C7tg5D3NpSu9CduOCbvgF';
+const MA_TOKEN = 'oVD1aAOfz57uhiKUUYS3DWw3RFFWQjjpOHLOAkzl';
 
-  <script>
-    const API_KEY = 'wBaK2cIhxa1C7tg5D3NpSu9CduOCbvgF'; // Replace with your own FinancialModelingPrep key
+const indicators = [
+  { name: 'S&P 500', symbol: 'SPY' },
+  { name: 'Nasdaq 100', symbol: 'QQQ' },
+  { name: 'Gold', symbol: 'XAUUSD' },
+  { name: '10Y Yield', symbol: 'IEF' },
+  { name: 'Dollar (UUP)', symbol: 'UUP' },
+  { name: 'Fear & Greed', symbol: 'feargreed', type: 'sentiment' }
+];
 
-    const indicators = [
-      { name: "S&P 500", symbol: "SPY" },
-      { name: "Nasdaq 100", symbol: "QQQ" },
-      { name: "Gold", symbol: "XAUUSD" },
-      { name: "10Y Treasury", symbol: "IEF" },
-      { name: "Dollar Index", symbol: "DXY" },
-      { name: "Fear & Greed Index", symbol: "fear_greed" }
-    ];
+async function fetchFmp(symbol) {
+  const res = await fetch(`https://financialmodelingprep.com/api/v3/quote/${symbol}?apikey=${FMP_KEY}`);
+  const j = await res.json();
+  if (Array.isArray(j) && j.length) return j[0];
+  throw new Error('No data');
+}
 
-    async function fetchPrice(symbol) {
-      const url = `https://financialmodelingprep.com/api/v3/quote/${symbol}?apikey=${API_KEY}`;
-      const res = await fetch(url);
-      const json = await res.json();
-      if (!Array.isArray(json) || json.length === 0) throw new Error("No data");
-      const item = json[0];
-      return {
-        price: item.price,
-        changePercent: item.changesPercentage
-      };
-    }
+async function fetchSentiment() {
+  const res = await fetch('https://api.alternative.me/fng/?limit=1');
+  const j = await res.json();
+  const d = j.data?.[0];
+  return { value: +d.value, sentiment: d.value_classification };
+}
 
-    async function fetchFearGreed() {
-      const res = await fetch('https://fear-and-greed-index.p.rapidapi.com/v1/fgi', {
-        headers: {
-          'X-RapidAPI-Key': 'YOUR_RAPIDAPI_KEY',
-          'X-RapidAPI-Host': 'fear-and-greed-index.p.rapidapi.com'
-        }
-      });
-      const json = await res.json();
-      return parseInt(json.fgi.now.value);
-    }
+function determineRisk(item) {
+  if (item.type === 'sentiment') return item.value < 30 ? 'risk-off' : 'neutral';
+  if (item.symbol === 'SPY' && item.price < 430) return 'risk-off';
+  if (item.symbol === 'QQQ' && item.price < 350) return 'risk-off';
+  if (item.symbol === 'IEF' && item.price < 90) return 'risk-off';
+  if (item.symbol === 'XAUUSD' && item.price < 1900) return 'risk-off';
+  if (item.symbol === 'UUP' && item.price > 30) return 'risk-off';
+  return 'neutral';
+}
 
-    async function fetchAllData() {
-      const data = [];
-      for (const i of indicators) {
-        try {
-          let value = null, changePercent = null;
-          if (i.symbol === "fear_greed") {
-            value = await fetchFearGreed();
-          } else {
-            const result = await fetchPrice(i.symbol);
-            value = result.price;
-            changePercent = result.changePercent;
-          }
-          data.push({ ...i, value, changePercent });
-        } catch (err) {
-          console.warn(`Error fetching ${i.name}:`, err);
-          data.push({ ...i, value: "N/A", changePercent: null });
-        }
-      }
-      return data;
-    }
-
-    function determineRiskType(item) {
-      if (item.symbol === "SPY" && item.value < 430) return "risk-off";
-      if (item.symbol === "QQQ" && item.value < 350) return "risk-off";
-      if (item.symbol === "IEF" && item.value < 90) return "risk-off";
-      if (item.symbol === "XAUUSD" && item.value < 1900) return "risk-off";
-      if (item.symbol === "DXY" && item.value > 105) return "risk-off";
-      if (item.symbol === "fear_greed" && item.value < 30) return "risk-off";
-      return "neutral";
-    }
-
-    function renderAlerts(data) {
-      const container = document.getElementById("alert-cards");
-      container.innerHTML = "";
-      data.forEach(item => {
-        const riskType = determineRiskType(item);
-        const bg = riskType === 'risk-off' ? 'bg-red-500' : 'bg-yellow-500';
-        const value = item.value === "N/A" ? "N/A" : item.value.toLocaleString();
-        let changeStr = "";
-        if (item.changePercent != null) {
-          const pct = parseFloat(item.changePercent);
-          const color = pct > 0 ? "text-green-600" : pct < 0 ? "text-red-600" : "text-gray-800";
-          const pctDisplay = pct.toFixed(2).replace('-', '−');
-          changeStr = `<div class="text-sm ${color}">${pct >= 0 ? '+' : '−'}${pctDisplay}%</div>`;
-        }
-
-        const card = document.createElement("div");
-        card.className = `p-4 rounded-lg text-black cursor-pointer ${bg}`;
-        card.innerHTML = `
-          <div class="text-sm font-bold">${item.name}</div>
-          <div class="text-xl">${value}</div>
-          ${changeStr}
-        `;
-
-        if (item.symbol !== "fear_greed" && item.value !== "N/A") {
-          card.onclick = () => showChart(item.name, item.symbol);
-        }
-
-        container.appendChild(card);
-      });
-
-      renderModeSuggestion(data);
-    }
-
-    function renderModeSuggestion(data) {
-      const box = document.getElementById("mode-box");
-      const riskOffCount = data.filter(i => determineRiskType(i) === "risk-off").length;
-      if (riskOffCount >= 3) {
-        box.textContent = "⚠️ Caution: Consider Holding Cash or Rebalancing";
-        box.className = "p-4 rounded-lg font-bold text-lg text-center bg-red-500 text-black";
-      } else if (riskOffCount === 0) {
-        box.textContent = "✅ Market Stable: Stay Invested";
-        box.className = "p-4 rounded-lg font-bold text-lg text-center bg-green-500 text-black";
+async function loadData() {
+  const data = [];
+  for (const i of indicators) {
+    try {
+      if (i.type === 'sentiment') {
+        const s = await fetchSentiment();
+        data.push({ ...i, value: s.value, sentiment: s.sentiment });
       } else {
-        box.textContent = "🟡 Neutral: Stay Informed";
-        box.className = "p-4 rounded-lg font-bold text-lg text-center bg-yellow-500 text-black";
+        const q = await fetchFmp(i.symbol);
+        data.push({ ...i, price: q.price, change: q.changesPercentage });
       }
+    } catch(e) {
+      console.error(`Error fetching ${i.name}`, e);
+      data.push(i.type === 'sentiment' ? { ...i, value:'N/A', sentiment:'' } : { ...i, price:'N/A', change:null });
     }
+  }
+  return data;
+}
 
-    async function showChart(name, symbol) {
-      const modal = document.getElementById("chart-modal");
-      const ctx = document.getElementById("chartCanvas").getContext("2d");
-      modal.classList.remove("hidden");
-      const url = `https://financialmodelingprep.com/api/v3/historical-price-full/${symbol}?serietype=line&timeseries=30&apikey=${API_KEY}`;
-      const res = await fetch(url);
-      const data = await res.json();
-      const prices = data.historical.reverse();
-      new Chart(ctx, {
-        type: "line",
-        data: {
-          labels: prices.map(p => p.date),
-          datasets: [{
-            label: `${name} Price`,
-            data: prices.map(p => p.close),
-            borderColor: "#3B82F6",
-            backgroundColor: "#3B82F622",
-            fill: true
-          }]
-        }
-      });
-    }
+function renderAlerts(data) {
+  const el = document.getElementById('alerts');
+  el.innerHTML = '';
+  data.forEach(d => {
+    const risk = determineRisk(d);
+    const bg = risk==='risk-off'? 'bg-red-500':'bg-yellow-500';
+    const val = d.type==='sentiment'? d.value : (d.price==='N/A'? 'N/A': d.price.toFixed(2));
+    const pct = d.change!=null ? `<div class="${d.change>=0?'text-green-600':'text-red-600'} text-sm">${d.change>=0?'+':''}${d.change.toFixed(2)}%</div>`:'';
+    const sent = d.sentiment ? `<div class="text-gray-800 text-sm">${d.sentiment}</div>` : '';
+    const card = document.createElement('div');
+    card.className = `${bg} rounded p-4 text-black cursor-pointer`;
+    card.innerHTML = `<div class="font-bold">${d.name}</div><div class="text-2xl">${val}</div>${pct}${sent}`;
+    if (!d.type) card.onclick = ()=> showChart(d.name, d.symbol);
+    el.appendChild(card);
+  });
+  renderMode(data);
+}
 
-    function closeChart() {
-      document.getElementById("chart-modal").classList.add("hidden");
-      document.getElementById("chartCanvas").getContext("2d").clearRect(0, 0, 400, 300);
-    }
+function renderMode(data) {
+  const count = data.filter(i => determineRisk(i)==='risk-off').length;
+  const box = document.getElementById('mode-box');
+  if (count>=3) {
+    box.textContent='⚠️ High Risk';
+    box.className='bg-red-500 p-4 rounded text-black text-lg font-bold text-center';
+  } else if (count===0) {
+    box.textContent='✅ Stable';
+    box.className='bg-green-500 p-4 rounded text-black text-lg font-bold text-center';
+  } else {
+    box.textContent='🟡 Mixed Signals';
+    box.className='bg-yellow-500 p-4 rounded text-black text-lg font-bold text-center';
+  }
+}
 
-    async function fetchNews() {
-      const res = await fetch("https://fmpcloud.io/api/v3/stock_news?limit=5&apikey=d1482k1r01qrqeasm27gd1482k1r01qrqeasm280");
-      const articles = await res.json();
-      return Array.isArray(articles) ? articles : [];
-    }
+async function showChart(name,symbol) {
+  const modal = document.getElementById('chart-modal');
+  modal.classList.remove('hidden');
+  const res = await fetch(`https://financialmodelingprep.com/api/v3/historical-price-full/${symbol}?timeseries=30&apikey=${FMP_KEY}`);
+  const j = await res.json();
+  if (!j.historical) return;
 
-    function renderNewsHeadlines(articles) {
-      const list = document.getElementById("news-list");
-      list.innerHTML = "";
-      articles.forEach(article => {
-        const li = document.createElement("li");
-        li.classList.add("mb-1");
-        li.innerHTML = `<a href="${article.url}" class="underline hover:text-yellow-300" target="_blank">${article.title}</a>`;
-        list.appendChild(li);
-      });
-    }
+  const ctx = document.getElementById('chartCanvas').getContext('2d');
+  if(window.myChart) window.myChart.destroy();
+  window.myChart = new Chart(ctx, {
+    type:'line',
+    data:{labels:j.historical.map(a=>a.date).reverse(), datasets:[{label:name, data:j.historical.map(a=>a.close).reverse(), borderColor:'#3B82F6', backgroundColor:'#3B82F622'}]}
+  });
+}
 
-    async function initDashboard() {
-      const data = await fetchAllData();
-      renderAlerts(data);
-      const headlines = await fetchNews();
-      renderNewsHeadlines(headlines);
-    }
+function closeChart() {
+  document.getElementById('chart-modal').classList.add('hidden');
+}
 
-    initDashboard();
-  </script>
+async function loadNews() {
+  try {
+    const res = await fetch(`https://api.marketaux.com/v1/news/all?api_token=${MA_TOKEN}&limit=5`);
+    const j = await res.json();
+    const list = document.getElementById('news-list');
+    list.innerHTML = '';
+    j.data.forEach(a=>{
+      const li = document.createElement('li');
+      li.innerHTML=`<a href="${a.url}" target="_blank" class="underline hover:text-yellow-300">${a.title}</a>`;
+      list.appendChild(li);
+    });
+  } catch(e) {
+    console.error('News error', e);
+  }
+}
+
+async function init() {
+  const data = await loadData();
+  renderAlerts(data);
+  await loadNews();
+}
+
+init();
+</script>
 </body>
 </html>
