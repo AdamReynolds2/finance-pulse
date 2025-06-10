@@ -36,7 +36,9 @@
   </div>
 
   <script>
-  const API_KEY = '146a9495d2c64e85936d21b0be82c103'; // replace this with your real key
+  const TWELVE_API_KEY = '146a9495d2c64e85936d21b0be82c103';
+  const FINNHUB_API_KEY = 'd1482k1r01qrqeasm27gd1482k1r01qrqeasm280';
+
   const symbols = [
     { name: 'S&P 500', symbol: 'SPY', type: 'etf' },
     { name: 'VIX', symbol: 'VIX', type: 'index' },
@@ -48,7 +50,7 @@
     const data = [];
 
     for (const s of symbols) {
-      const url = `${base}?symbol=${encodeURIComponent(s.symbol)}&apikey=${API_KEY}`;
+      const url = `${base}?symbol=${encodeURIComponent(s.symbol)}&apikey=${TWELVE_API_KEY}`;
       try {
         const res = await fetch(url);
         const json = await res.json();
@@ -59,6 +61,18 @@
     }
 
     return data;
+  }
+
+  async function fetchNews() {
+    const url = `https://finnhub.io/api/v1/news?category=general&token=${FINNHUB_API_KEY}`;
+    try {
+      const res = await fetch(url);
+      const articles = await res.json();
+      return articles.slice(0, 5); // Top 5 headlines
+    } catch (err) {
+      console.error('News fetch error:', err);
+      return [];
+    }
   }
 
   function determineRiskType(name, value) {
@@ -99,45 +113,28 @@
     }
   }
 
+  function renderNewsHeadlines(articles) {
+    const list = document.getElementById('news-list');
+    list.innerHTML = '';
+    articles.forEach(article => {
+      const li = document.createElement('li');
+      li.classList.add('mb-1');
+      li.innerHTML = `<a href="${article.url}" class="underline hover:text-yellow-300" target="_blank">${article.headline}</a>`;
+      list.appendChild(li);
+    });
+  }
+
   async function initDashboard() {
-  const priceData = await fetchPrices();
-  renderLiveAlerts(priceData);
+    const priceData = await fetchPrices();
+    renderLiveAlerts(priceData);
 
-  const newsArticles = await fetchNews();
-  renderNewsHeadlines(newsArticles);
-}
-
+    const newsArticles = await fetchNews();
+    renderNewsHeadlines(newsArticles);
+  }
 
   initDashboard();
-    const FINNHUB_API_KEY = 'd1482k1r01qrqeasm27gd1482k1r01qrqeasm280'; // Replace with your actual key
-    const corsProxy = 'https://corsproxy.io/?';
-const url = corsProxy + encodeURIComponent(`https://finnhub.io/api/v1/news?category=general&token=${API_KEY}`);
-
-
-async function fetchNews() {
-  const url = `https://finnhub.io/api/v1/news?category=general&token=${d1482k1r01qrqeasm27gd1482k1r01qrqeasm280}`;
-  try {
-    const res = await fetch(url);
-    const articles = await res.json();
-    return articles.slice(0, 5); // Top 5 headlines
-  } catch (err) {
-    console.error('News fetch error:', err);
-    return [];
-  }
-}
-
-function renderNewsHeadlines(articles) {
-  const list = document.getElementById('news-list');
-  list.innerHTML = '';
-  articles.forEach(article => {
-    const li = document.createElement('li');
-    li.classList.add('mb-1');
-    li.innerHTML = `<a href="${article.url}" class="underline hover:text-yellow-300" target="_blank">${article.headline}</a>`;
-    list.appendChild(li);
-  });
-}
-
 </script>
+
 
 </body>
 </html>
