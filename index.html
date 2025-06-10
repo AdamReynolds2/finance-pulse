@@ -2,9 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Finance Pulse</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-gray-900 text-white font-sans">
   <div class="max-w-4xl mx-auto p-4">
@@ -13,7 +14,7 @@
     <!-- Market Alerts -->
     <section id="alerts" class="mb-6">
       <h2 class="text-xl font-semibold mb-2">Market Pulse Alerts</h2>
-      <div class="grid grid-cols-2 md:grid-cols-3 gap-4" id="alert-cards"></div>
+      <div class="grid grid-cols-2 gap-4" id="alert-cards"></div>
     </section>
 
     <!-- News Headlines -->
@@ -22,144 +23,168 @@
       <ul id="news-list" class="list-disc list-inside text-sm space-y-1"></ul>
     </section>
 
-    <!-- Investment Mode -->
+    <!-- Mode Suggestion -->
     <section class="mb-6">
       <h2 class="text-xl font-semibold mb-2">Investment Mode</h2>
       <div id="mode-box" class="p-4 rounded-lg font-bold text-lg text-center bg-yellow-500 text-black">Loading...</div>
     </section>
   </div>
 
-<script>
-const FMP_API_KEY = 'wBaK2cIhxa1C7tg5D3NpSu9CduOCbvgF'; // Replace with your actual FMP key
+  <!-- Chart Modal -->
+  <div id="chartModal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center hidden">
+    <div class="bg-white text-black rounded p-4 max-w-xl w-full">
+      <h3 id="chartTitle" class="text-lg font-bold mb-2">Loading...</h3>
+      <canvas id="chartCanvas" width="400" height="200"></canvas>
+      <button onclick="closeChart()" class="mt-4 px-4 py-2 bg-gray-800 text-white rounded">Close</button>
+    </div>
+  </div>
 
-const indicators = [
-  { name: 'S&P 500', symbol: 'SPY', source: 'fmp' },
-  { name: 'Nasdaq 100', symbol: 'QQQ', source: 'fmp' },
-  { name: 'US 10Y Bond (IEF)', symbol: 'IEF', source: 'fmp' },
-  { name: 'Gold', symbol: 'XAUUSD', source: 'fmp' },
-  { name: 'Dollar Index (UUP)', symbol: 'UUP', source: 'fmp' },
-  { name: 'Bitcoin', symbol: 'bitcoin', source: 'coingecko' },
-];
+  <script>
+    const FMP_KEY = 'demo'; // Replace with your actual Financial Modeling Prep API key
 
-// Fetch from FMP
-async function fetchFMPQuote(symbol) {
-  const url = `https://financialmodelingprep.com/api/v3/quote/${symbol}?apikey=${FMP_API_KEY}`;
-  try {
-    const res = await fetch(url);
-    const json = await res.json();
-    if (json.length) {
-      return {
-        price: json[0].price,
-        change: json[0].changesPercentage,
-      };
-    }
-  } catch (err) {
-    console.error(`FMP fetch failed for ${symbol}:`, err);
-  }
-  return null;
-}
+    const indicators = [
+      { name: 'S&P 500', symbol: 'SPY' },
+      { name: 'Nasdaq 100', symbol: 'QQQ' },
+      { name: 'Gold', symbol: 'GLD' },
+      { name: 'Bitcoin', symbol: 'BTC-USD' },
+      { name: '10Y Treasury', symbol: 'IEF' },
+      { name: 'Dollar Index (UUP)', symbol: 'UUP' },
+    ];
 
-// Fetch from CoinGecko
-async function fetchCoinGeckoPrice() {
-  const url = 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true';
-  try {
-    const res = await fetch(url);
-    const json = await res.json();
-    return {
-      price: json.bitcoin.usd,
-      change: json.bitcoin.usd_24h_change,
-    };
-  } catch (err) {
-    console.error('CoinGecko fetch failed:', err);
-    return null;
-  }
-}
-
-async function fetchAllData() {
-  const results = [];
-  for (const item of indicators) {
-    let result = null;
-    if (item.source === 'fmp') {
-      result = await fetchFMPQuote(item.symbol);
-    } else if (item.source === 'coingecko') {
-      result = await fetchCoinGeckoPrice();
+    async function fetchQuotes() {
+      const symbols = indicators.map(i => i.symbol).join(',');
+      const url = `https://financialmodelingprep.com/api/v3/quote/${symbols}?apikey=${FMP_KEY}`;
+      try {
+        const res = await fetch(url);
+        const json = await res.json();
+        return indicators.map(ind => {
+          const match = json.find(q => q.symbol === ind.symbol);
+          return {
+            ...ind,
+            value: match?.price ?? 'N/A',
+          };
+        });
+      } catch (err) {
+        console.error('Fetch error:', err);
+        return [];
+      }
     }
 
-    results.push({
-      name: item.name,
-      price: result?.price ?? 'N/A',
-      change: result?.change ?? 'N/A',
+    function determineRisk(name, value) {
+      if (name === 'S&P 500' && value < 430) return 'risk-off';
+      if (name === 'Nasdaq 100' && value < 360) return 'risk-off';
+      if (name === 'Gold' && value > 2000) return 'risk-off';
+      if (name === 'Bitcoin' && value < 30000) return 'risk-off';
+      if (name === '10Y Treasury' && value > 100) return 'risk-off';
+      if (name.includes('Dollar') && value > 28) return 'risk-off';
+      return 'neutral';
+    }
+
+    function renderAlerts(data) {
+      const container = document.getElementById('alert-cards');
+      container.innerHTML = '';
+      data.forEach(item => {
+        const risk = determineRisk(item.name, item.value);
+        const bg = risk === 'risk-off' ? 'bg-red-500' :
+                   risk === 'risk-on' ? 'bg-green-500' : 'bg-yellow-500';
+        const val = item.value !== 'N/A' ? Number(item.value).toLocaleString() : 'N/A';
+        container.innerHTML += `
+          <div class="p-4 rounded-lg ${bg} text-black cursor-pointer" data-symbol="${item.symbol}" data-name="${item.name}">
+            <div class="text-sm font-bold">${item.name}</div>
+            <div class="text-xl">${val}</div>
+          </div>`;
+      });
+
+      renderModeSuggestion(data);
+    }
+
+    function renderModeSuggestion(data) {
+      const box = document.getElementById('mode-box');
+      const riskOffCount = data.filter(d => determineRisk(d.name, d.value) === 'risk-off').length;
+      if (riskOffCount >= 3) {
+        box.textContent = '⚠️ Caution: Consider Holding Cash or Rebalancing';
+        box.className = 'p-4 rounded-lg font-bold text-lg text-center bg-red-500 text-black';
+      } else if (riskOffCount === 0) {
+        box.textContent = '✅ Market Stable: Stay Invested';
+        box.className = 'p-4 rounded-lg font-bold text-lg text-center bg-green-500 text-black';
+      } else {
+        box.textContent = '🟡 Neutral: Stay Informed';
+        box.className = 'p-4 rounded-lg font-bold text-lg text-center bg-yellow-500 text-black';
+      }
+    }
+
+    async function fetchNews() {
+      try {
+        const url = `https://finnhub.io/api/v1/news?category=general&token=d1482k1r01qrqeasm27gd1482k1r01qrqeasm280`;
+        const res = await fetch(url);
+        const articles = await res.json();
+        return articles.slice(0, 5);
+      } catch (err) {
+        console.error('News error:', err);
+        return [];
+      }
+    }
+
+    function renderNewsHeadlines(articles) {
+      const list = document.getElementById('news-list');
+      list.innerHTML = '';
+      articles.forEach(article => {
+        const li = document.createElement('li');
+        li.classList.add('mb-1');
+        li.innerHTML = `<a href="${article.url}" class="underline hover:text-yellow-300" target="_blank">${article.headline}</a>`;
+        list.appendChild(li);
+      });
+    }
+
+    async function fetchHistory(symbol) {
+      const url = `https://financialmodelingprep.com/api/v3/historical-price-full/${symbol}?timeseries=30&apikey=${FMP_KEY}`;
+      const res = await fetch(url);
+      const json = await res.json();
+      return json.historical?.reverse() || [];
+    }
+
+    async function showChart(symbol, name) {
+      const data = await fetchHistory(symbol);
+      const ctx = document.getElementById('chartCanvas').getContext('2d');
+      document.getElementById('chartTitle').textContent = name;
+      if (window.myChart) window.myChart.destroy();
+      window.myChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: data.map(d => d.date),
+          datasets: [{
+            label: name,
+            data: data.map(d => d.close),
+            fill: false,
+            borderColor: 'blue',
+            tension: 0.1
+          }]
+        }
+      });
+      document.getElementById('chartModal').classList.remove('hidden');
+    }
+
+    function closeChart() {
+      document.getElementById('chartModal').classList.add('hidden');
+    }
+
+    document.addEventListener('click', e => {
+      const card = e.target.closest('[data-symbol]');
+      if (card) {
+        const symbol = card.getAttribute('data-symbol');
+        const name = card.getAttribute('data-name');
+        showChart(symbol, name);
+      }
     });
-  }
-  return results;
-}
 
-function renderAlerts(data) {
-  const container = document.getElementById('alert-cards');
-  container.innerHTML = '';
-  data.forEach(item => {
-    const isDown = typeof item.change === 'number' && item.change < 0;
-    const bgColor = isDown ? 'bg-red-500' : 'bg-green-500';
-    container.innerHTML += `
-      <div class="p-4 rounded-lg ${bgColor} text-black">
-        <div class="text-sm font-bold">${item.name}</div>
-        <div class="text-xl">${typeof item.price === 'number' ? item.price.toFixed(2) : 'N/A'}</div>
-        <div class="text-sm">${typeof item.change === 'number' ? item.change.toFixed(2) + '%' : ''}</div>
-      </div>
-    `;
-  });
+    async function init() {
+      const quoteData = await fetchQuotes();
+      renderAlerts(quoteData);
+      const news = await fetchNews();
+      renderNewsHeadlines(news);
+    }
 
-  renderMode(data);
-}
-
-function renderMode(data) {
-  const modeBox = document.getElementById('mode-box');
-  const dropCount = data.filter(d => typeof d.change === 'number' && d.change < -0.5).length;
-
-  if (dropCount >= 4) {
-    modeBox.textContent = '⚠️ High Risk: Consider Holding Cash or Rebalancing';
-    modeBox.className = 'p-4 rounded-lg font-bold text-lg text-center bg-red-500 text-black';
-  } else if (dropCount <= 1) {
-    modeBox.textContent = '✅ Market Stable: Stay Invested';
-    modeBox.className = 'p-4 rounded-lg font-bold text-lg text-center bg-green-500 text-black';
-  } else {
-    modeBox.textContent = '🟡 Mixed Signals: Monitor Closely';
-    modeBox.className = 'p-4 rounded-lg font-bold text-lg text-center bg-yellow-500 text-black';
-  }
-}
-
-// News Section
-async function fetchNews() {
-  const url = 'https://finnhub.io/api/v1/news?category=general&token=d1482k1r01qrqeasm27gd1482k1r01qrqeasm280'; // Replace with your own if needed
-  try {
-    const res = await fetch(url);
-    const articles = await res.json();
-    return articles.slice(0, 5);
-  } catch (err) {
-    console.error('News fetch error:', err);
-    return [];
-  }
-}
-
-function renderNews(articles) {
-  const list = document.getElementById('news-list');
-  list.innerHTML = '';
-  articles.forEach(article => {
-    const li = document.createElement('li');
-    li.innerHTML = `<a href="${article.url}" class="underline hover:text-yellow-300" target="_blank">${article.headline}</a>`;
-    list.appendChild(li);
-  });
-}
-
-// Main Init
-(async function init() {
-  const data = await fetchAllData();
-  renderAlerts(data);
-
-  const news = await fetchNews();
-  renderNews(news);
-})();
-</script>
-
+    init();
+  </script>
 </body>
 </html>
