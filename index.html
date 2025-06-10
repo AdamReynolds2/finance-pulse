@@ -54,20 +54,64 @@
   ];
 
   // Fetch price for one symbol from Twelve Data API
-  async function fetchPriceTD(symbol) {
-    const base = 'https://api.twelvedata.com/price';
-    const url = `${base}?symbol=${encodeURIComponent(symbol)}&apikey=${TWELVE_API_KEY}`;
-    try {
-      const res = await fetch(url);
-      const json = await res.json();
-      if (json.price) return parseFloat(json.price);
-      console.warn(`No price found for ${symbol}:`, json);
-      return NaN;
-    } catch (e) {
-      console.error(`Error fetching price for ${symbol}`, e);
+  async function fetchPrice(symbol) {
+  if (!TWELVE_API_KEY) {
+    console.warn(`No API key for ${symbol}, returning dummy price.`);
+    return Math.random() * 500 + 100; // dummy price fallback
+  }
+
+  const url = `https://api.twelvedata.com/price?symbol=${encodeURIComponent(symbol)}&apikey=${TWELVE_API_KEY}`;
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+
+    if (data.code === 429) {
+      console.warn(`API limit hit for ${symbol}, returning dummy price.`);
+      return Math.random() * 500 + 100;
+    }
+
+    if (data.price) {
+      return parseFloat(data.price);
+    } else {
+      console.warn(`No price found for ${symbol}:`, data);
       return NaN;
     }
+  } catch (e) {
+    console.error(`Error fetching price for ${symbol}`, e);
+    return NaN;
   }
+}
+
+async function fetchPercentChange(symbol) {
+  if (!TWELVE_API_KEY) {
+    return (Math.random() - 0.5) * 5; // dummy change fallback
+  }
+
+  const url = `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(symbol)}&interval=1day&outputsize=2&apikey=${TWELVE_API_KEY}`;
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+
+    if (data.code === 429) {
+      console.warn(`API limit hit for percent change of ${symbol}, returning dummy change.`);
+      return (Math.random() - 0.5) * 5;
+    }
+
+    if (data.values && data.values.length >= 2) {
+      const [latest, previous] = data.values;
+      const latestClose = parseFloat(latest.close);
+      const prevClose = parseFloat(previous.close);
+      if (!isNaN(latestClose) && !isNaN(prevClose)) {
+        return ((latestClose - prevClose) / prevClose) * 100;
+      }
+    }
+    return NaN;
+  } catch (e) {
+    console.error(`Error fetching percent change for ${symbol}`, e);
+    return NaN;
+  }
+}
+
 
   // Fetch all prices from Twelve Data
   async function fetchPrices() {
