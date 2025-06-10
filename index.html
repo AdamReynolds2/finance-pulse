@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Finance Pulse</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" />
 </head>
 <body class="bg-gray-900 text-white font-sans">
   <div class="max-w-4xl mx-auto p-4">
@@ -25,9 +25,7 @@
     <!-- Macro Snapshot -->
     <section class="mb-6">
       <h2 class="text-xl font-semibold mb-2">Macro Snapshot</h2>
-      <div id="macro-panel" class="grid grid-cols-2 gap-4 text-sm">
-        <p>Coming soon: inflation, rates, GDP...</p>
-      </div>
+      <div id="macro-panel" class="grid grid-cols-2 gap-4 text-sm"></div>
     </section>
 
     <!-- Mode Suggestion -->
@@ -44,7 +42,7 @@
     const symbols = [
       { name: 'S&P 500', symbol: 'SPY', type: 'etf' },
       { name: 'VIX', symbol: 'VIX', type: 'index' },
-      { name: 'Bitcoin', symbol: 'BTC/USD', type: 'crypto' },
+      { name: 'Bitcoin', symbol: 'BTCUSD', type: 'crypto' }, // Fixed symbol (no slash)
     ];
 
     async function fetchPrices() {
@@ -56,9 +54,16 @@
         try {
           const res = await fetch(url);
           const json = await res.json();
-          data.push({ ...s, value: parseFloat(json.price) });
+
+          if (json.price) {
+            data.push({ ...s, value: parseFloat(json.price) });
+          } else {
+            console.warn(`No price data for ${s.symbol}:`, json);
+            data.push({ ...s, value: NaN });
+          }
         } catch (err) {
           console.error(`Error fetching ${s.symbol}:`, err);
+          data.push({ ...s, value: NaN });
         }
       }
 
@@ -81,7 +86,7 @@
                    riskType === 'risk-on' ? 'bg-green-500' : 'bg-yellow-500';
         container.innerHTML += `<div class="p-4 rounded-lg ${bg} text-black">
           <div class="text-sm font-bold">${a.name}</div>
-          <div class="text-xl">${a.value.toLocaleString()}</div>
+          <div class="text-xl">${isNaN(a.value) ? 'N/A' : a.value.toLocaleString()}</div>
         </div>`;
       });
 
@@ -123,11 +128,32 @@
         const li = document.createElement('li');
         li.classList.add('mb-1');
         li.innerHTML = `
-          <a href="${article.url}" class="underline hover:text-yellow-300" target="_blank">
+          <a href="${article.url}" class="underline hover:text-yellow-300" target="_blank" rel="noopener noreferrer">
             ${article.headline}
           </a>`;
         list.appendChild(li);
       });
+    }
+
+    function renderMacroSnapshot() {
+      const macroPanel = document.getElementById('macro-panel');
+      // Static example data for now — replace with real API calls later if you want
+      const macroData = {
+        'Inflation Rate': '5.4%',
+        'Fed Funds Rate': '5.00%',
+        'GDP Growth': '2.1%',
+        'Unemployment Rate': '3.7%'
+      };
+
+      macroPanel.innerHTML = '';
+      for (const [key, val] of Object.entries(macroData)) {
+        macroPanel.innerHTML += `
+          <div class="p-3 bg-gray-800 rounded shadow">
+            <div class="font-semibold">${key}</div>
+            <div>${val}</div>
+          </div>
+        `;
+      }
     }
 
     async function initDashboard() {
@@ -136,6 +162,8 @@
 
       const newsArticles = await fetchNews();
       renderNewsHeadlines(newsArticles);
+
+      renderMacroSnapshot();
     }
 
     initDashboard();
