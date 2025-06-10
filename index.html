@@ -134,7 +134,7 @@ function closeChart() {
 
 async function loadNews() {
   try {
-    const res = await fetch(`https://api.marketaux.com/v1/news/all?api_token=${MA_TOKEN}&limit=5`);
+    const res = await fetch(`https://api.marketaux.com/v1/news/all?api_token=${MA_TOKEN}&limit=6`);
     const j = await res.json();
     const list = document.getElementById('news-list');
     list.innerHTML = '';
