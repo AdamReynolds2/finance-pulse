@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Finance Pulse</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+</head>
+<body class="bg-gray-900 text-white font-sans">
+  <div class="max-w-4xl mx-auto p-4">
+    <h1 class="text-3xl font-bold mb-4">📊 Finance Pulse</h1>
+
+    <!-- Market Alerts -->
+    <section id="alerts" class="mb-6">
+      <h2 class="text-xl font-semibold mb-2">Market Pulse Alerts</h2>
+      <div class="grid grid-cols-2 gap-4" id="alert-cards"></div>
+    </section>
+
+    <!-- News Headlines -->
+    <section class="mb-6">
+      <h2 class="text-xl font-semibold mb-2">Latest Market Headlines</h2>
+      <ul id="news-list" class="list-disc list-inside text-sm space-y-1"></ul>
+    </section>
+
+    <!-- Macro Snapshot -->
+    <section class="mb-6">
+      <h2 class="text-xl font-semibold mb-2">Macro Snapshot</h2>
+      <div id="macro-panel" class="grid grid-cols-2 gap-4 text-sm"></div>
+    </section>
+
+    <!-- Mode Suggestion -->
+    <section class="mb-6">
+      <h2 class="text-xl font-semibold mb-2">Investment Mode</h2>
+      <div id="mode-box" class="p-4 rounded-lg font-bold text-lg text-center bg-yellow-500 text-black">Loading...</div>
+    </section>
+  </div>
+
+  <script>
+    const alerts = [
+      { name: 'S&P 500', value: -2.4, unit: '%', type: 'risk-off' },
+      { name: 'VIX', value: 25.3, unit: '', type: 'risk-off' },
+      { name: '10Y Treasury', value: 4.3, unit: '%', type: 'neutral' },
+      { name: 'Bitcoin', value: -3.2, unit: '%', type: 'risk-off' },
+    ];
+
+    const news = [
+      'Fed Minutes Suggest Possible Rate Hikes',
+      'S&P 500 Drops Over 2% Amid Recession Fears',
+      'Oil Prices Climb on Supply Concerns',
+      'Gold Rises as Investors Seek Safety'
+    ];
+
+    const macro = [
+      { label: 'Fed Rate', value: '5.25%' },
+      { label: 'CPI (YoY)', value: '3.1%' },
+      { label: '10Y Yield', value: '4.3%' },
+      { label: 'Oil (WTI)', value: '$82.10' },
+    ];
+
+    function renderAlerts() {
+      const container = document.getElementById('alert-cards');
+      alerts.forEach(a => {
+        const bg = a.type === 'risk-off' ? 'bg-red-500' : a.type === 'risk-on' ? 'bg-green-500' : 'bg-yellow-500';
+        container.innerHTML += `<div class="p-4 rounded-lg ${bg} text-black">
+          <div class="text-sm font-bold">${a.name}</div>
+          <div class="text-xl">${a.value}${a.unit}</div>
+        </div>`;
+      });
+    }
+
+    function renderNews() {
+      const list = document.getElementById('news-list');
+      news.forEach(n => {
+        const li = document.createElement('li');
+        li.textContent = n;
+        list.appendChild(li);
+      });
+    }
+
+    function renderMacro() {
+      const panel = document.getElementById('macro-panel');
+      macro.forEach(item => {
+        const div = document.createElement('div');
+        div.innerHTML = `<span class="font-semibold">${item.label}:</span> ${item.value}`;
+        panel.appendChild(div);
+      });
+    }
+
+    function renderModeSuggestion() {
+      const modeBox = document.getElementById('mode-box');
+      const riskOffCount = alerts.filter(a => a.type === 'risk-off').length;
+      if (riskOffCount >= 3) {
+        modeBox.textContent = '⚠️ Caution: Consider Holding Cash or Rebalancing';
+        modeBox.className += ' bg-red-500';
+      } else if (riskOffCount === 0) {
+        modeBox.textContent = '✅ Market Stable: Stay Invested';
+        modeBox.className += ' bg-green-500';
+      } else {
+        modeBox.textContent = '🟡 Neutral: Stay Informed';
+      }
+    }
+
+    renderAlerts();
+    renderNews();
+    renderMacro();
+    renderModeSuggestion();
+  </script>
+</body>
+</html>
