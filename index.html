@@ -36,74 +36,76 @@
   </div>
 
   <script>
-    const alerts = [
-      { name: 'S&P 500', value: -2.4, unit: '%', type: 'risk-off' },
-      { name: 'VIX', value: 25.3, unit: '', type: 'risk-off' },
-      { name: '10Y Treasury', value: 4.3, unit: '%', type: 'neutral' },
-      { name: 'Bitcoin', value: -3.2, unit: '%', type: 'risk-off' },
-    ];
+  const API_KEY = '146a9495d2c64e85936d21b0be82c103'; // replace this with your real key
+  const symbols = [
+    { name: 'S&P 500', symbol: 'SPY', type: 'etf' },
+    { name: 'VIX', symbol: 'VIX', type: 'index' },
+    { name: 'Bitcoin', symbol: 'BTC/USD', type: 'crypto' },
+  ];
 
-    const news = [
-      'Fed Minutes Suggest Possible Rate Hikes',
-      'S&P 500 Drops Over 2% Amid Recession Fears',
-      'Oil Prices Climb on Supply Concerns',
-      'Gold Rises as Investors Seek Safety'
-    ];
+  async function fetchPrices() {
+    const base = 'https://api.twelvedata.com/price';
+    const data = [];
 
-    const macro = [
-      { label: 'Fed Rate', value: '5.25%' },
-      { label: 'CPI (YoY)', value: '3.1%' },
-      { label: '10Y Yield', value: '4.3%' },
-      { label: 'Oil (WTI)', value: '$82.10' },
-    ];
-
-    function renderAlerts() {
-      const container = document.getElementById('alert-cards');
-      alerts.forEach(a => {
-        const bg = a.type === 'risk-off' ? 'bg-red-500' : a.type === 'risk-on' ? 'bg-green-500' : 'bg-yellow-500';
-        container.innerHTML += `<div class="p-4 rounded-lg ${bg} text-black">
-          <div class="text-sm font-bold">${a.name}</div>
-          <div class="text-xl">${a.value}${a.unit}</div>
-        </div>`;
-      });
-    }
-
-    function renderNews() {
-      const list = document.getElementById('news-list');
-      news.forEach(n => {
-        const li = document.createElement('li');
-        li.textContent = n;
-        list.appendChild(li);
-      });
-    }
-
-    function renderMacro() {
-      const panel = document.getElementById('macro-panel');
-      macro.forEach(item => {
-        const div = document.createElement('div');
-        div.innerHTML = `<span class="font-semibold">${item.label}:</span> ${item.value}`;
-        panel.appendChild(div);
-      });
-    }
-
-    function renderModeSuggestion() {
-      const modeBox = document.getElementById('mode-box');
-      const riskOffCount = alerts.filter(a => a.type === 'risk-off').length;
-      if (riskOffCount >= 3) {
-        modeBox.textContent = '⚠️ Caution: Consider Holding Cash or Rebalancing';
-        modeBox.className += ' bg-red-500';
-      } else if (riskOffCount === 0) {
-        modeBox.textContent = '✅ Market Stable: Stay Invested';
-        modeBox.className += ' bg-green-500';
-      } else {
-        modeBox.textContent = '🟡 Neutral: Stay Informed';
+    for (const s of symbols) {
+      const url = `${base}?symbol=${encodeURIComponent(s.symbol)}&apikey=${API_KEY}`;
+      try {
+        const res = await fetch(url);
+        const json = await res.json();
+        data.push({ ...s, value: parseFloat(json.price) });
+      } catch (err) {
+        console.error(`Error fetching ${s.symbol}:`, err);
       }
     }
 
-    renderAlerts();
-    renderNews();
-    renderMacro();
-    renderModeSuggestion();
-  </script>
+    return data;
+  }
+
+  function determineRiskType(name, value) {
+    if (name === 'S&P 500' && value < 430) return 'risk-off';
+    if (name === 'VIX' && value > 20) return 'risk-off';
+    if (name === 'Bitcoin' && value < 30000) return 'risk-off';
+    return 'neutral';
+  }
+
+  function renderLiveAlerts(data) {
+    const container = document.getElementById('alert-cards');
+    container.innerHTML = '';
+    data.forEach(a => {
+      const riskType = determineRiskType(a.name, a.value);
+      const bg = riskType === 'risk-off' ? 'bg-red-500' :
+                 riskType === 'risk-on' ? 'bg-green-500' : 'bg-yellow-500';
+      container.innerHTML += `<div class="p-4 rounded-lg ${bg} text-black">
+        <div class="text-sm font-bold">${a.name}</div>
+        <div class="text-xl">${a.value.toLocaleString()}</div>
+      </div>`;
+    });
+
+    renderModeSuggestion(data);
+  }
+
+  function renderModeSuggestion(alerts) {
+    const modeBox = document.getElementById('mode-box');
+    const riskOffCount = alerts.filter(a => determineRiskType(a.name, a.value) === 'risk-off').length;
+    if (riskOffCount >= 2) {
+      modeBox.textContent = '⚠️ Caution: Consider Holding Cash or Rebalancing';
+      modeBox.className = 'p-4 rounded-lg font-bold text-lg text-center bg-red-500 text-black';
+    } else if (riskOffCount === 0) {
+      modeBox.textContent = '✅ Market Stable: Stay Invested';
+      modeBox.className = 'p-4 rounded-lg font-bold text-lg text-center bg-green-500 text-black';
+    } else {
+      modeBox.textContent = '🟡 Neutral: Stay Informed';
+      modeBox.className = 'p-4 rounded-lg font-bold text-lg text-center bg-yellow-500 text-black';
+    }
+  }
+
+  async function initDashboard() {
+    const priceData = await fetchPrices();
+    renderLiveAlerts(priceData);
+  }
+
+  initDashboard();
+</script>
+
 </body>
 </html>
