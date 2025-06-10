@@ -1,224 +1,253 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Finance Pulse</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" />
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
 </head>
-<body class="bg-gray-900 text-white font-sans">
-  <div class="max-w-4xl mx-auto p-4">
-    <h1 class="text-3xl font-bold mb-4">📊 Finance Pulse</h1>
+<body class="bg-gray-900 text-white font-sans min-h-screen">
+  <div class="max-w-4xl mx-auto p-6">
+    <h1 class="text-3xl font-bold mb-6">📊 Finance Pulse</h1>
 
     <!-- Market Alerts -->
-    <section id="alerts" class="mb-6">
-      <h2 class="text-xl font-semibold mb-2">Market Pulse Alerts</h2>
-      <div class="grid grid-cols-2 gap-4" id="alert-cards"></div>
+    <section id="alerts" class="mb-8">
+      <h2 class="text-xl font-semibold mb-4">Market Pulse Alerts</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4" id="alert-cards"></div>
     </section>
 
     <!-- News Headlines -->
-    <section class="mb-6">
-      <h2 class="text-xl font-semibold mb-2">Latest Market Headlines</h2>
-      <ul id="news-list" class="list-disc list-inside text-sm space-y-1"></ul>
+    <section class="mb-8">
+      <h2 class="text-xl font-semibold mb-4">Latest Market Headlines</h2>
+      <ul id="news-list" class="list-disc list-inside text-sm space-y-2 max-h-48 overflow-y-auto"></ul>
     </section>
 
     <!-- Macro Snapshot -->
-    <section class="mb-6">
-      <h2 class="text-xl font-semibold mb-2">Macro Snapshot</h2>
-      <div id="macro-panel" class="grid grid-cols-2 gap-4 text-sm"></div>
+    <section class="mb-8">
+      <h2 class="text-xl font-semibold mb-4">Macro Snapshot</h2>
+      <div id="macro-panel" class="grid grid-cols-2 sm:grid-cols-3 gap-6 text-sm"></div>
     </section>
 
     <!-- Mode Suggestion -->
-    <section class="mb-6">
-      <h2 class="text-xl font-semibold mb-2">Investment Mode</h2>
-      <div id="mode-box" class="p-4 rounded-lg font-bold text-lg text-center bg-yellow-500 text-black">Loading...</div>
+    <section class="mb-8">
+      <h2 class="text-xl font-semibold mb-4">Investment Mode</h2>
+      <div id="mode-box" class="p-4 rounded-lg font-bold text-lg text-center bg-yellow-500 text-black">
+        Loading...
+      </div>
     </section>
   </div>
 
-  <script>
-    const TWELVE_API_KEY = '146a9495d2c64e85936d21b0be82c103';   // ← Replace with your Twelve Data API key
-    const FINNHUB_API_KEY = 'd1482k1r01qrqeasm27gd1482k1r01qrqeasm280';       // ← Replace with your Finnhub API key
+<script>
+  // Your API keys here
+  const TWELVE_API_KEY = '146a9495d2c64e85936d21b0be82c103';
+  const FINNHUB_API_KEY = 'd1482k1r01qrqeasm27gd1482k1r01qrqeasm280';
 
-    // Expanded symbol list
-    const symbols = [
-  { name: 'S&P 500', symbol: 'SPY', type: 'etf' },
-  { name: 'Russell 2000', symbol: 'IWM', type: 'etf' },
-  { name: 'Bitcoin', symbol: 'BTC/USD', type: 'crypto' },
-  { name: 'Gold', symbol: 'XAU/USD', type: 'commodity' },
-  { name: '7-10 Year Treasury ETF', symbol: 'IEF', type: 'bond' },  // proxy for US 10Y yield
-  { name: 'Nasdaq', symbol: 'QQQ', type: 'etf' },
-];
-
-
-    async function fetchPrices() {
-  const base = "https://api.twelvedata.com/price";
-  const data = [];
-
-  // Symbols supported by Twelve Data:
-  const tdSymbols = [
-    { name: "S&P 500", symbol: "SPY", type: "etf" },
-    { name: "Gold", symbol: "XAU/USD", type: "commodity" },
-    { name: "7-10 Year Treasury ETF", symbol: "IEF", type: "bond" },
-    { name: "Nasdaq", symbol: "QQQ", type: "etf" },
+  // Symbols for Market Pulse - 6 key indicators
+  const symbols = [
+    { name: 'S&P 500', symbol: 'SPY', type: 'etf' },
+    { name: 'Russell 2000', symbol: 'IWM', type: 'etf' },  // Replaced VIX here
+    { name: 'Bitcoin', symbol: 'BTC/USD', type: 'crypto' },
+    { name: 'US 10Y Yield', symbol: 'IEF', type: 'bond' },
+    { name: 'Gold', symbol: 'XAU/USD', type: 'commodity' },
+    { name: 'Nasdaq', symbol: 'QQQ', type: 'etf' },
   ];
 
-  // Fetch Twelve Data prices
-  for (const s of tdSymbols) {
-    const url = `${base}?symbol=${encodeURIComponent(s.symbol)}&apikey=${TWELVE_API_KEY}`;
+  // Fetch price for one symbol from Twelve Data API
+  async function fetchPriceTD(symbol) {
+    const base = 'https://api.twelvedata.com/price';
+    const url = `${base}?symbol=${encodeURIComponent(symbol)}&apikey=${TWELVE_API_KEY}`;
     try {
       const res = await fetch(url);
       const json = await res.json();
-      if (json.price) {
-        data.push({ ...s, value: parseFloat(json.price) });
-      } else {
-        console.warn(`No price data for ${s.symbol}:`, json);
-        data.push({ ...s, value: NaN });
-      }
-    } catch (err) {
-      console.error(`Error fetching ${s.symbol}:`, err);
-      data.push({ ...s, value: NaN });
+      if (json.price) return parseFloat(json.price);
+      console.warn(`No price found for ${symbol}:`, json);
+      return NaN;
+    } catch (e) {
+      console.error(`Error fetching price for ${symbol}`, e);
+      return NaN;
     }
   }
 
-  // Fetch Finnhub prices for VIX and Bitcoin
-  const vixPrice = await fetchFinnhubQuote("^VIX"); // VIX symbol on Finnhub
-  data.push({ name: "VIX", symbol: "^VIX", type: "index", value: vixPrice });
+  // Fetch all prices from Twelve Data
+  async function fetchPrices() {
+    const data = [];
+    for (const s of symbols) {
+      const value = await fetchPriceTD(s.symbol);
+      data.push({ ...s, value });
+    }
+    return data;
+  }
 
-  const btcPrice = await fetchFinnhubQuote("BINANCE:BTCUSDT"); // Binance BTC/USDT pair
-  data.push({ name: "Bitcoin", symbol: "BINANCE:BTCUSDT", type: "crypto", value: btcPrice });
+  // Simple risk logic for each indicator (adjust thresholds as you want)
+  function determineRiskType(name, value) {
+    if (isNaN(value)) return 'unknown';
 
-  // Fetch US 10Y Yield economic data from Finnhub
-  const us10yYield = await fetchUS10YYield();
-  data.push({ name: "US 10Y Yield", symbol: "US10Y_YIELD", type: "bond", value: us10yYield });
+    switch (name) {
+      case 'S&P 500':
+        if (value < 430) return 'risk-off';
+        break;
+      case 'Russell 2000':
+        if (value < 180) return 'risk-off';
+        break;
+      case 'Bitcoin':
+        if (value < 30000) return 'risk-off';
+        break;
+      case 'US 10Y Yield':
+        if (value > 3.5) return 'risk-off'; // rising yields can pressure stocks
+        break;
+      case 'Gold':
+        if (value > 1900) return 'risk-off'; // gold up often means market worry
+        break;
+      case 'Nasdaq':
+        if (value < 12000) return 'risk-off';
+        break;
+    }
+    return 'neutral';
+  }
 
-  return data;
-}
+  // Render Market Pulse Alert cards
+  function renderLiveAlerts(data) {
+    const container = document.getElementById('alert-cards');
+    container.innerHTML = '';
 
+    data.forEach(item => {
+      const riskType = determineRiskType(item.name, item.value);
+      const bgColor =
+        riskType === 'risk-off'
+          ? 'bg-red-500'
+          : riskType === 'risk-on'
+          ? 'bg-green-500'
+          : riskType === 'neutral'
+          ? 'bg-yellow-500'
+          : 'bg-gray-600';
 
-    // Adjusted risk rules for 6 items
-    function determineRiskType(name, value) {
-      if (isNaN(value)) return 'neutral';  // No data fallback
+      const displayValue = isNaN(item.value) ? 'N/A' : item.value.toLocaleString(undefined, {maximumFractionDigits: 2});
 
-      switch (name) {
-        case 'S&P 500':
-        case 'Nasdaq':
-          if (value < 430) return 'risk-off';
-          return 'neutral';
+      const card = document.createElement('div');
+      card.className = `${bgColor} p-5 rounded-lg text-black shadow-md`;
 
-        case 'VIX':
-          if (value > 20) return 'risk-off';
-          return 'neutral';
+      card.innerHTML = `
+        <div class="font-bold text-lg">${item.name}</div>
+        <div class="text-2xl mt-2">${displayValue}</div>
+      `;
 
-        case 'Bitcoin':
-          if (value < 30000) return 'risk-off';
-          return 'neutral';
+      container.appendChild(card);
+    });
 
-        case 'Gold':
-          // Gold often rises in risk-off, so high price might signal risk-off
-          if (value > 1800) return 'risk-off';
-          return 'neutral';
+    renderModeSuggestion(data);
+    renderMacroSnapshot(data);
+  }
 
-        case 'US 10Y Yield':
-          // Rising yield may imply risk-on, falling yield risk-off
-          // This is a simplified rule
-          if (value < 3.0) return 'risk-off';
-          return 'neutral';
+  // Investment Mode logic based on risk-off count
+  function renderModeSuggestion(data) {
+    const modeBox = document.getElementById('mode-box');
+    const riskOffCount = data.filter(d => determineRiskType(d.name, d.value) === 'risk-off').length;
 
-        default:
-          return 'neutral';
+    if (riskOffCount >= 3) {
+      modeBox.textContent = '⚠️ High Risk: Consider Holding Cash or Rebalancing';
+      modeBox.className = 'p-4 rounded-lg font-bold text-lg text-center bg-red-600 text-white';
+    } else if (riskOffCount === 0) {
+      modeBox.textContent = '✅ Market Stable: Stay Invested';
+      modeBox.className = 'p-4 rounded-lg font-bold text-lg text-center bg-green-600 text-white';
+    } else {
+      modeBox.textContent = '🟡 Moderate Risk: Stay Informed';
+      modeBox.className = 'p-4 rounded-lg font-bold text-lg text-center bg-yellow-500 text-black';
+    }
+  }
+
+  // Render Macro Snapshot showing simple % changes from yesterday for each item
+  async function renderMacroSnapshot(data) {
+    const panel = document.getElementById('macro-panel');
+    panel.innerHTML = '';
+
+    // For each symbol, fetch the previous close price to calculate % change
+    for (const item of data) {
+      const changePercent = await fetchPercentChange(item.symbol);
+
+      const isNegative = changePercent < 0;
+      const colorClass = isNegative ? 'text-red-400' : 'text-green-400';
+
+      const card = document.createElement('div');
+      card.className = `p-3 bg-gray-800 rounded-md shadow`;
+
+      card.innerHTML = `
+        <div class="font-semibold">${item.name}</div>
+        <div class="${colorClass} text-lg">${isNaN(changePercent) ? 'N/A' : changePercent.toFixed(2) + '%'}</div>
+      `;
+
+      panel.appendChild(card);
+    }
+  }
+
+  // Fetch percent change from previous close
+  async function fetchPercentChange(symbol) {
+    const base = 'https://api.twelvedata.com/time_series';
+    // Fetch only 2 days to get previous close and current price
+    const url = `${base}?symbol=${encodeURIComponent(symbol)}&interval=1day&outputsize=2&apikey=${TWELVE_API_KEY}`;
+    try {
+      const res = await fetch(url);
+      const json = await res.json();
+
+      if (json.values && json.values.length >= 2) {
+        const [latest, previous] = json.values;
+        const latestClose = parseFloat(latest.close);
+        const prevClose = parseFloat(previous.close);
+        if (!isNaN(latestClose) && !isNaN(prevClose)) {
+          return ((latestClose - prevClose) / prevClose) * 100;
+        }
       }
+      return NaN;
+    } catch (e) {
+      console.error(`Error fetching percent change for ${symbol}`, e);
+      return NaN;
+    }
+  }
+
+  // Fetch latest news from Finnhub with CORS proxy
+  async function fetchNews() {
+    const corsProxy = 'https://corsproxy.io/?';
+    const url = `${corsProxy}https://finnhub.io/api/v1/news?category=general&token=${FINNHUB_API_KEY}`;
+
+    try {
+      const res = await fetch(url);
+      const json = await res.json();
+      return json.slice(0, 6); // top 6 headlines
+    } catch (e) {
+      console.error('Error fetching news:', e);
+      return [];
+    }
+  }
+
+  // Render news headlines list
+  function renderNewsHeadlines(articles) {
+    const list = document.getElementById('news-list');
+    list.innerHTML = '';
+
+    if (articles.length === 0) {
+      list.textContent = 'No news available.';
+      return;
     }
 
-    function renderLiveAlerts(data) {
-      const container = document.getElementById('alert-cards');
-      container.innerHTML = '';
-      data.forEach(a => {
-        const riskType = determineRiskType(a.name, a.value);
-        const bg = riskType === 'risk-off' ? 'bg-red-500' :
-                   riskType === 'risk-on' ? 'bg-green-500' : 'bg-yellow-500';
-        container.innerHTML += `<div class="p-4 rounded-lg ${bg} text-black">
-          <div class="text-sm font-bold">${a.name}</div>
-          <div class="text-xl">${isNaN(a.value) ? 'N/A' : a.value.toLocaleString()}</div>
-        </div>`;
-      });
+    articles.forEach(article => {
+      const li = document.createElement('li');
+      li.className = 'mb-1';
 
-      renderModeSuggestion(data);
-    }
+      li.innerHTML = `<a href="${article.url}" target="_blank" rel="noopener noreferrer" class="underline hover:text-yellow-300">${article.headline}</a>`;
+      list.appendChild(li);
+    });
+  }
 
-    function renderModeSuggestion(alerts) {
-      const modeBox = document.getElementById('mode-box');
-      const riskOffCount = alerts.filter(a => determineRiskType(a.name, a.value) === 'risk-off').length;
+  // Initialize dashboard
+  async function initDashboard() {
+    const prices = await fetchPrices();
+    renderLiveAlerts(prices);
 
-      if (riskOffCount >= 3) {
-        modeBox.textContent = '⚠️ High Caution: Consider Holding Cash or Rebalancing';
-        modeBox.className = 'p-4 rounded-lg font-bold text-lg text-center bg-red-600 text-black';
-      } else if (riskOffCount === 0) {
-        modeBox.textContent = '✅ Market Stable: Stay Invested';
-        modeBox.className = 'p-4 rounded-lg font-bold text-lg text-center bg-green-600 text-black';
-      } else {
-        modeBox.textContent = '🟡 Moderate Risk: Stay Informed and Watch Closely';
-        modeBox.className = 'p-4 rounded-lg font-bold text-lg text-center bg-yellow-500 text-black';
-      }
-    }
+    const news = await fetchNews();
+    renderNewsHeadlines(news);
+  }
 
-    async function fetchNews() {
-      const url = `https://finnhub.io/api/v1/news?category=general&token=${FINNHUB_API_KEY}`;
-      try {
-        const res = await fetch(url);
-        const articles = await res.json();
-        return articles.slice(0, 5);
-      } catch (err) {
-        console.error('News fetch error:', err);
-        return [];
-      }
-    }
-
-    function renderNewsHeadlines(articles) {
-      const list = document.getElementById('news-list');
-      list.innerHTML = '';
-      articles.forEach(article => {
-        const li = document.createElement('li');
-        li.classList.add('mb-1');
-        li.innerHTML = `
-          <a href="${article.url}" class="underline hover:text-yellow-300" target="_blank" rel="noopener noreferrer">
-            ${article.headline}
-          </a>`;
-        list.appendChild(li);
-      });
-    }
-
-    function renderMacroSnapshot() {
-      const macroPanel = document.getElementById('macro-panel');
-      // Static example data for now — replace with real API calls later if you want
-      const macroData = {
-        'Inflation Rate': '5.4%',
-        'Fed Funds Rate': '5.00%',
-        'GDP Growth': '2.1%',
-        'Unemployment Rate': '3.7%'
-      };
-
-      macroPanel.innerHTML = '';
-      for (const [key, val] of Object.entries(macroData)) {
-        macroPanel.innerHTML += `
-          <div class="p-3 bg-gray-800 rounded shadow">
-            <div class="font-semibold">${key}</div>
-            <div>${val}</div>
-          </div>
-        `;
-      }
-    }
-
-    async function initDashboard() {
-      const priceData = await fetchPrices();
-      renderLiveAlerts(priceData);
-
-      const newsArticles = await fetchNews();
-      renderNewsHeadlines(newsArticles);
-
-      renderMacroSnapshot();
-    }
-
-    initDashboard();
-  </script>
+  initDashboard();
+</script>
 </body>
 </html>
