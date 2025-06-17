@@ -46,163 +46,147 @@
   </div>
 
   <script>
-    const indicators = [
-      { symbol: 'SPY', name: 'S&P 500' },
-      { symbol: 'QQQ', name: 'Nasdaq 100' },
-      { symbol: 'IEF', name: '10Y Treasury ETF' },
-      { symbol: 'XAUUSD', name: 'Gold' },
-      { symbol: 'GLD', name: 'Gold ETF' },
-      { symbol: 'AAPL', name: 'Apple' },
-    ];
-
-    const apiKey = 'wBaK2cIhxa1C7tg5D3NpSu9CduOCbvgF'; // Replace if needed
-    let chartInstance = null;
-
-    function updateTimestamp() {
-      const now = new Date();
-      document.getElementById('timestamp').textContent = `Last updated: ${now.toLocaleString()}`;
-    }
-
-    async function fetchPrice(symbol) {
-      try {
-        const res = await fetch(`https://financialmodelingprep.com/api/v3/quote/${symbol}?apikey=${apiKey}`);
-        const data = await res.json();
-        if (data.length === 0) throw new Error('No data');
-        return data[0];
-      } catch (err) {
-        console.error(`Error fetching ${symbol}:`, err);
-        return { symbol, price: 'N/A', changesPercentage: 'N/A' };
-      }
-    }
-
-    async function fetchAllData() {
-      updateTimestamp();
-
-      const data = await Promise.all(indicators.map(i => fetchPrice(i.symbol)));
-      const alertContainer = document.getElementById('alerts');
-      alertContainer.innerHTML = '';
-
-      let riskCount = 0;
-
-      data.forEach(d => {
-        const isRiskOff = d.changesPercentage !== 'N/A' && parseFloat(d.changesPercentage) < -1;
-        if (isRiskOff) riskCount++;
-        const bg = isRiskOff ? 'bg-red-500' : 'bg-green-500';
-        const name = d.name || d.symbol;
-        const priceText = d.price !== 'N/A' ? `$${parseFloat(d.price).toFixed(2)}` : 'N/A';
-        const changeText = d.changesPercentage !== 'N/A' ? `${parseFloat(d.changesPercentage).toFixed(2)}%` : 'N/A';
-
-        alertContainer.innerHTML += `
-          <div class="${bg} p-4 rounded cursor-pointer" onclick="showChart('${d.symbol}', '${name}')">
-            <div class="font-bold">${name}</div>
-            <div>${priceText} (${changeText})</div>
-          </div>`;
-      });
-
-      const modeBox = document.getElementById('investment-mode');
-      if (riskCount >= 3) {
-        modeBox.textContent = '⚠️ Risk-Off: Consider defensive positions';
-        modeBox.className = 'p-4 text-center font-bold text-lg rounded-lg bg-red-500 text-black';
-      } else if (riskCount === 0) {
-        modeBox.textContent = '✅ Risk-On: Growth-friendly environment';
-        modeBox.className = 'p-4 text-center font-bold text-lg rounded-lg bg-green-500 text-black';
-      } else {
-        modeBox.textContent = '🟡 Neutral: Stay informed';
-        modeBox.className = 'p-4 text-center font-bold text-lg rounded-lg bg-yellow-500 text-black';
-      }
-    }
-
-    async function fetchSentiment() {
-      try {
-        const res = await fetch('https://api.alternative.me/fng/?limit=1&format=json');
-        const data = await res.json();
-        const value = data.data[0];
-        document.getElementById('sentiment').textContent = `${value.value_classification} (${value.value}/100)`;
-      } catch (err) {
-        console.error('Sentiment fetch error:', err);
-        document.getElementById('sentiment').textContent = 'N/A';
-      }
-    }
-
-    async function loadNews() {
-  const fallbackHeadlines = [
-    { title: "Stocks Edge Higher Ahead of Fed Comments", url: "https://www.marketwatch.com/" },
-    { title: "Gold Steady as Dollar Slips on Soft Economic Data", url: "https://www.kitco.com/" },
-    { title: "Treasury Yields Dip as Investors Eye Inflation Trends", url: "https://www.investing.com/" },
-    { title: "Tech Giants Lead Nasdaq Recovery", url: "https://www.cnbc.com/" },
-    { title: "Bitcoin Holds Ground Above $65K in Quiet Trading", url: "https://www.coindesk.com/" }
+  const indicators = [
+    { symbol: 'SPY', name: 'S&P 500' },
+    { symbol: 'QQQ', name: 'Nasdaq 100' },
+    { symbol: 'IEF', name: '10Y Treasury ETF' },
+    { symbol: 'XAUUSD', name: 'Gold' },
+    { symbol: 'GLD', name: 'Gold ETF' },
+    { symbol: 'AAPL', name: 'Apple' },
   ];
 
-  try {
-    const res = await fetch(`https://financialmodelingprep.com/api/v3/stock_news?tickers=SPY,QQQ,GLD,XAUUSD,BTCUSD,AAPL&limit=20&apikey=${apiKey}`);
-    const headlines = await res.json();
-    const list = document.getElementById('headlines');
-    list.innerHTML = '';
+  const apiKey = 'wBaK2cIhxa1C7tg5D3NpSu9CduOCbvgF'; // Replace with your FMP API key
 
-    const items = Array.isArray(headlines) && headlines.length > 0 ? headlines.slice(0, 5) : fallbackHeadlines;
-
-    items.forEach(item => {
-      const li = document.createElement('li');
-      const date = new Date(item.publishedDate).toLocaleDateString();
-      li.innerHTML = `<a href="${item.url}" target="_blank" class="hover:text-yellow-300 underline">${item.title}</a><span class="text-gray-400 ml-2 text-xs">(${date})</span>`;
-      list.appendChild(li);
-    });
-  } catch (err) {
-    console.error('News fetch error:', err);
-    const list = document.getElementById('headlines');
-    list.innerHTML = '';
-    fallbackHeadlines.forEach(item => {
-      const li = document.createElement('li');
-      li.innerHTML = `<a href="${item.url}" target="_blank" class="hover:text-yellow-300 underline">${item.title}</a>`;
-      list.appendChild(li);
-    });
+  // Add a timestamp of the last run
+  function updateTimestamp() {
+    const now = new Date();
+    const ts = now.toLocaleString();
+    const container = document.querySelector('.max-w-4xl');
+    const existing = document.getElementById('last-updated');
+    if (existing) {
+      existing.textContent = `Last updated: ${ts}`;
+    } else {
+      const div = document.createElement('div');
+      div.id = 'last-updated';
+      div.className = 'text-sm text-gray-400 mb-4';
+      div.textContent = `Last updated: ${ts}`;
+      container.insertBefore(div, container.firstChild.nextSibling);
+    }
   }
-}
 
+  async function fetchPrice(symbol) {
+    try {
+      const res = await fetch(`https://financialmodelingprep.com/api/v3/quote/${symbol}?apikey=${apiKey}`);
+      const data = await res.json();
+      if (data.length === 0) throw new Error('No data');
+      return data[0];
+    } catch (err) {
+      console.error(`Error fetching ${symbol}:`, err);
+      return { symbol, price: 'N/A', changesPercentage: 'N/A' };
+    }
+  }
 
+  async function fetchAllData() {
+    const data = await Promise.all(indicators.map(i => fetchPrice(i.symbol)));
+    const alertContainer = document.getElementById('alerts');
+    alertContainer.innerHTML = '';
 
-    async function showChart(symbol, name) {
-      const res = await fetch(`https://financialmodelingprep.com/api/v3/historical-price-full/${symbol}?serietype=line&timeseries=30&apikey=${apiKey}`);
-      const json = await res.json();
-      const history = json.historical || [];
+    let riskCount = 0;
 
-      const ctx = document.getElementById('chart').getContext('2d');
-      if (chartInstance) chartInstance.destroy();
+    data.forEach(d => {
+      const isRiskOff = d.changesPercentage !== 'N/A' && parseFloat(d.changesPercentage) < -1;
+      if (isRiskOff) riskCount++;
+      const bg = isRiskOff ? 'bg-red-500' : 'bg-green-500';
+      alertContainer.innerHTML += `
+        <div class="${bg} p-4 rounded cursor-pointer" onclick="showChart('${d.symbol}')">
+          <div class="font-bold">${d.name || d.symbol}</div>
+          <div>
+            ${d.price !== 'N/A' ? `$${parseFloat(d.price).toFixed(2)}` : 'N/A'}
+            (${d.changesPercentage !== 'N/A' ? `${parseFloat(d.changesPercentage).toFixed(2)}%` : 'N/A'})
+          </div>
+        </div>`;
+    });
 
-      chartInstance = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: history.map(d => d.date).reverse(),
-          datasets: [{
-            label: `${name} - Last 30 Days`,
-            data: history.map(d => d.close).reverse(),
-            fill: false,
-            borderColor: '#3b82f6',
-            tension: 0.1
-          }]
-        },
-        options: {
-          scales: {
-            x: { ticks: { color: '#333' } },
-            y: { ticks: { color: '#333' } }
-          }
-        }
+    const modeBox = document.getElementById('investment-mode');
+    if (riskCount >= 3) {
+      modeBox.textContent = '⚠️ Risk-Off: Consider defensive positions';
+      modeBox.className = 'p-4 text-center font-bold text-lg rounded-lg bg-red-500 text-black';
+    } else if (riskCount === 0) {
+      modeBox.textContent = '✅ Risk-On: Growth-friendly environment';
+      modeBox.className = 'p-4 text-center font-bold text-lg rounded-lg bg-green-500 text-black';
+    } else {
+      modeBox.textContent = '🟡 Neutral: Stay informed';
+      modeBox.className = 'p-4 text-center font-bold text-lg rounded-lg bg-yellow-500 text-black';
+    }
+  }
+
+  async function fetchSentiment() {
+    try {
+      const res = await fetch('https://api.alternative.me/fng/?limit=1&format=json');
+      const data = await res.json();
+      const value = data.data[0];
+      document.getElementById('sentiment').textContent = `${value.value_classification} (${value.value}/100)`;
+    } catch (err) {
+      console.error('Sentiment fetch error:', err);
+      document.getElementById('sentiment').textContent = 'N/A';
+    }
+  }
+
+  async function loadNews() {
+    const fallbackHeadlines = [
+      { title: "Stocks mixed as Fed watches inflation", url: "https://www.marketwatch.com/" },
+      { title: "Gold and Bitcoin show safe-haven behavior", url: "https://www.coindesk.com/" },
+      { title: "10-Year yields dip amid macro worries", url: "https://www.investing.com/" },
+      { title: "Tech rebounds ahead of earnings", url: "https://www.cnbc.com/" },
+      { title: "Consumer confidence ticks down", url: "https://www.reuters.com/" }
+    ];
+
+    try {
+      const res = await fetch('https://api.allorigins.win/raw?url=https://finance.yahoo.com/news/rssindex');
+      const xmlText = await res.text();
+      const parser = new DOMParser();
+      const xml = parser.parseFromString(xmlText, "application/xml");
+      const items = Array.from(xml.querySelectorAll("item")).slice(0, 5);
+
+      const list = document.getElementById('headlines');
+      list.innerHTML = '';
+
+      items.forEach(item => {
+        const title = item.querySelector("title")?.textContent || "No title";
+        const link = item.querySelector("link")?.textContent || "#";
+        const pubDate = item.querySelector("pubDate")?.textContent;
+        const date = pubDate ? new Date(pubDate).toLocaleDateString() : "";
+
+        const li = document.createElement("li");
+        li.innerHTML = `<a href="${link}" target="_blank" class="hover:text-yellow-300 underline">${title}</a> <span class="text-gray-400 text-xs ml-2">(${date})</span>`;
+        list.appendChild(li);
       });
-
-      document.getElementById('modal').classList.remove('hidden');
+    } catch (err) {
+      console.error("RSS feed fetch error:", err);
+      const list = document.getElementById('headlines');
+      list.innerHTML = '';
+      fallbackHeadlines.forEach(item => {
+        const li = document.createElement("li");
+        li.innerHTML = `<a href="${item.url}" target="_blank" class="hover:text-yellow-300 underline">${item.title}</a>`;
+        list.appendChild(li);
+      });
     }
+  }
 
-    function closeModal() {
-      document.getElementById('modal').classList.add('hidden');
-    }
+  // Placeholder function for future chart popup
+  function showChart(symbol) {
+    alert(`Chart for ${symbol} coming soon...`);
+    // You can replace this with a modal that loads a 1-month chart
+  }
 
-    async function initDashboard() {
-      await fetchAllData();
-      await fetchSentiment();
-      await loadNews();
-    }
+  async function initDashboard() {
+    updateTimestamp();
+    await fetchAllData();
+    await fetchSentiment();
+    await loadNews();
+  }
 
-    initDashboard();
-  </script>
+  initDashboard();
+</script>
 </body>
 </html>
