@@ -175,64 +175,71 @@
     }
   }
 
-  // Placeholder function for future chart popup
+  // Show chart modal and load historical data chart
   async function showChart(symbol) {
-  document.getElementById('chart-modal').classList.remove('hidden');
-  document.getElementById('chart-title').textContent = `${symbol} - 1 Month Chart`;
+    const modal = document.getElementById('chart-modal');
+    modal.classList.remove('hidden');
+    document.getElementById('chart-title').textContent = `${symbol} - 1 Month Chart`;
 
-  try {
-    const res = await fetch(`https://financialmodelingprep.com/api/v3/historical-price-full/${symbol}?timeseries=30&apikey=${apiKey}`);
-    const json = await res.json();
+    try {
+      const res = await fetch(`https://financialmodelingprep.com/api/v3/historical-price-full/${symbol}?timeseries=30&apikey=${apiKey}`);
+      const json = await res.json();
 
-    const historical = json.historical?.reverse(); // Oldest to newest
-    if (!historical || historical.length === 0) throw new Error("No chart data");
+      const historical = json.historical?.reverse(); // Oldest to newest
+      if (!historical || historical.length === 0) throw new Error("No chart data");
 
-    const labels = historical.map(item => item.date);
-    const prices = historical.map(item => item.close);
+      const labels = historical.map(item => item.date);
+      const prices = historical.map(item => item.close);
 
-    if (window.chartInstance) {
-      window.chartInstance.destroy();
-    }
+      if (window.chartInstance) {
+        window.chartInstance.destroy();
+      }
 
-    const ctx = document.getElementById('chart-canvas').getContext('2d');
-    window.chartInstance = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [{
-          label: `${symbol} Closing Price`,
-          data: prices,
-          fill: false,
-          borderColor: 'rgb(34, 197, 94)',
-          tension: 0.3,
-          pointRadius: 1,
-        }]
-      },
-      options: {
-        responsive: true,
-        plugins: {
-          legend: { display: false }
+      const ctx = document.getElementById('chart-canvas').getContext('2d');
+      window.chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: `${symbol} Closing Price`,
+            data: prices,
+            fill: false,
+            borderColor: 'rgb(34, 197, 94)',
+            tension: 0.3,
+            pointRadius: 1,
+          }]
         },
-        scales: {
-          x: { ticks: { maxTicksLimit: 10 } }
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: { ticks: { maxTicksLimit: 10 } }
+          }
         }
+      });
+    } catch (err) {
+      console.error('Chart load error:', err);
+      document.getElementById('chart-title').textContent = `Error loading chart for ${symbol}`;
+    }
+  }
+
+  // Close the chart modal
+  function closeModal() {
+    document.getElementById('chart-modal').classList.add('hidden');
+  }
+
+  // Add click listener for closing modal by clicking outside chart area
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('chart-modal').addEventListener('click', function (e) {
+      if (e.target.dataset.close === 'true') {
+        closeModal();
       }
     });
-  } catch (err) {
-    console.error('Chart load error:', err);
-    document.getElementById('chart-title').textContent = `Error loading chart for ${symbol}`;
-  }
-}
+  });
 
-function closeModal() {
-  document.getElementById('chart-modal').classList.add('hidden');
-}
-document.getElementById('chart-modal').addEventListener('click', function (e) {
-  if (e.target.dataset.close === 'true') {
-    closeModal();
-  }
-});
-
+  // Initialize dashboard
   async function initDashboard() {
     updateTimestamp();
     await fetchAllData();
@@ -242,6 +249,7 @@ document.getElementById('chart-modal').addEventListener('click', function (e) {
 
   initDashboard();
 </script>
+
   <!-- Chart Modal -->
 <div id="chart-modal" data-close="true" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 hidden">
   <div class="bg-white rounded-lg max-w-2xl w-full p-4 relative" onclick="event.stopPropagation()">
