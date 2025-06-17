@@ -125,21 +125,28 @@
     }
 
     async function loadNews() {
-      try {
-        const res = await fetch('https://api.marketaux.com/v1/news/all?language=en&limit=5&api_token=demo');
-        const json = await res.json();
-        const headlines = json.data || [];
-        const list = document.getElementById('headlines');
-        list.innerHTML = '';
-        headlines.forEach(item => {
-          const li = document.createElement('li');
-          li.innerHTML = `<a href="${item.url}" target="_blank" class="hover:text-yellow-300 underline">${item.title}</a>`;
-          list.appendChild(li);
-        });
-      } catch (err) {
-        console.error('News fetch error:', err);
-      }
+  try {
+    const res = await fetch(`https://financialmodelingprep.com/api/v3/stock_news?limit=5&apikey=${apiKey}`);
+    const headlines = await res.json();
+    const list = document.getElementById('headlines');
+    list.innerHTML = '';
+
+    if (!Array.isArray(headlines) || headlines.length === 0) {
+      list.innerHTML = `<li>No news headlines available at this time.</li>`;
+      return;
     }
+
+    headlines.forEach(item => {
+      const li = document.createElement('li');
+      li.innerHTML = `<a href="${item.url}" target="_blank" class="hover:text-yellow-300 underline">${item.title}</a>`;
+      list.appendChild(li);
+    });
+  } catch (err) {
+    console.error('News fetch error:', err);
+    document.getElementById('headlines').innerHTML = `<li>Error loading news headlines.</li>`;
+  }
+}
+
 
     async function showChart(symbol, name) {
       const res = await fetch(`https://financialmodelingprep.com/api/v3/historical-price-full/${symbol}?serietype=line&timeseries=30&apikey=${apiKey}`);
